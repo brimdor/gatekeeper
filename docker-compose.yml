@@ -1,0 +1,19 @@
+services:
+  gatekeeper:
+    build: .
+    ports:
+      - "8080:8080"
+      - "8081:8081"  # MCP SSE
+    volumes:
+      - ./data:/data
+    environment:
+      - GATEKEEPER_DATABASE_URL=sqlite+aiosqlite:////data/gatekeeper.db
+      - GATEKEEPER_GOOGLE_TOKEN_FILE=/data/google_token.json
+      - GATEKEEPER_SECRET_KEY=${GATEKEEPER_SECRET_KEY}
+      - GATEKEEPER_ENCRYPTION_KEY=${GATEKEEPER_ENCRYPTION_KEY}
+      - GATEKEEPER_GOOGLE_CLIENT_ID=${GATEKEEPER_GOOGLE_CLIENT_ID}
+      - GATEKEEPER_GOOGLE_CLIENT_SECRET=${GATEKEEPER_GOOGLE_CLIENT_SECRET}
+      - GATEKEEPER_DRIVE_ENABLED=${GATEKEEPER_DRIVE_ENABLED:-false}
+      - GATEKEEPER_GMAIL_ENABLED=${GATEKEEPER_GMAIL_ENABLED:-false}
+      - GATEKEEPER_CALENDAR_ENABLED=${GATEKEEPER_CALENDAR_ENABLED:-false}
+    restart: unless-stopped
