@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Gatekeeper{% endblock %}
+
+{% set page = "dashboard" %}
+
+{% block content %}
+<div class="mb-8">
+    <h2 class="text-2xl font-bold text-white">Dashboard</h2>
+    <p class="text-gray-400 mt-1">Overview of your Gatekeeper instance</p>
+</div>
+
+<!-- Stats cards -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <p class="text-sm text-gray-400">Total Requests</p>
+        <p class="text-3xl font-bold text-white mt-2" id="total-requests" hx-get="/admin/api/dashboard" hx-trigger="load" hx-target="#total-requests" hx-swap="innerHTML">
+            Loading...
+        </p>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <p class="text-sm text-gray-400">Active Keys</p>
+        <p class="text-3xl font-bold text-white mt-2" id="active-keys" hx-get="/admin/api/dashboard" hx-trigger="load" hx-swap="innerHTML">
+            Loading...
+        </p>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <p class="text-sm text-gray-400">Enabled Routes</p>
+        <p class="text-3xl font-bold text-white mt-2" id="enabled-routes" hx-get="/admin/api/dashboard" hx-trigger="load" hx-swap="innerHTML">
+            Loading...
+        </p>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <p class="text-sm text-gray-400">Google Auth</p>
+        <p class="text-lg font-bold mt-2" id="auth-status" hx-get="/admin/api/auth/status" hx-trigger="load" hx-swap="innerHTML">
+            Loading...
+        </p>
+    </div>
+</div>
+
+<!-- Module cards -->
+<div hx-get="/admin/api/modules" hx-trigger="load" hx-swap="innerHTML" id="modules-grid">
+    <div class="text-gray-500">Loading modules...</div>
+</div>
+
+<!-- Recent audit log -->
+<div class="mt-8">
+    <h3 class="text-lg font-semibold text-white mb-4">Recent Requests</h3>
+    <div hx-get="/admin/api/audit?limit=10" hx-trigger="load" hx-swap="innerHTML" id="recent-audit">
+        <div class="text-gray-500">Loading...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load dashboard stats
+fetch('/admin/api/dashboard')
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('total-requests').textContent = data.total_requests;
+        document.getElementById('active-keys').textContent = data.active_keys;
+        document.getElementById('enabled-routes').textContent = data.enabled_routes;
+        document.getElementById('auth-status').textContent = data.auth_connected ? '✅ Connected' : '❌ Disconnected';
+        document.getElementById('auth-status').className = 'text-lg font-bold mt-2 ' + (data.auth_connected ? 'text-green-400' : 'text-red-400');
+    });
+
+// Load modules
+fetch('/admin/api/modules')
+    .then(r => r.json())
+    .then(modules => {
+        let html = '<div class="grid grid-cols-1 md:grid-cols-3 gap-6">';
+        modules.forEach(m => {
+            html += `
+            <div class="bg-gray-800 rounded-lg p-6 border ${m.enabled ? 'border-green-700' : 'border-gray-700'}">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-2xl">${m.icon}</span>
+                    <span class="px-2 py-1 text-xs rounded ${m.enabled ? 'bg-green-800 text-green-300' : 'bg-gray-700 text-gray-400'}">${m.enabled ? 'Enabled' : 'Disabled'}</span>
+                </div>
+                <h3 class="text-lg font-semibold text-white">${m.display_name}</h3>
+                <p class="text-sm text-gray-400 mt-1">${m.description}</p>
+                <p class="text-xs text-gray-500 mt-3">${m.route_count} routes active</p>
+            </div>`;
+        });
+        html += '</div>';
+        document.getElementById('modules-grid').innerHTML = html;
+    });
+
+// Load recent audit log
+fetch('/admin/api/audit?limit=10')
+    .then(r => r.json())
+    .then(entries => {
+        if (entries.length === 0) {
+            document.getElementById('recent-audit').innerHTML = '<p class="text-gray-500">No requests yet</p>';
+            return;
+        }
+        let html = '<table class="w-full text-sm"><thead><tr class="text-gray-400 border-b border-gray-700"><th class="text-left p-2">Time</th><th class="text-left p-2">Key</th><th class="text-left p-2">Module</th><th class="text-left p-2">Route</th><th class="text-left p-2">Status</th></tr></thead><tbody>';
+        entries.forEach(e => {
+            const statusClass = e.status_code < 300 ? 'text-green-400' : e.status_code < 500 ? 'text-yellow-400' : 'text-red-400';
+            html += `<tr class="border-b border-gray-800"><td class="p-2 text-gray-300">${e.created_at ? new Date(e.created_at).toLocaleString() : ''}</td><td class="p-2">${e.api_key_prefix}</td><td class="p-2">${e.module}</td><td class="p-2">${e.route}</td><td class="p-2 ${statusClass}">${e.status_code}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('recent-audit').innerHTML = html;
+    });
+</script>
+{% endblock %}

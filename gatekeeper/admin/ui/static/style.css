@@ -1,0 +1,56 @@
+/* Gatekeeper custom styles — minimal additions on top of Tailwind */
+
+/* HTMX indicator */
+.htmx-indicator {
+    display: none;
+}
+.htmx-request .htmx-indicator {
+    display: inline-block;
+}
+.htmx-request.htmx-indicator {
+    display: inline-block;
+}
+
+/* Smooth transitions */
+[hx-get], [hx-post], [hx-put], [hx-patch], [hx-delete] {
+    transition: all 0.15s ease;
+}
+
+/* Code blocks */
+pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Table hover */
+table tbody tr:hover {
+    background-color: rgba(55, 65, 81, 0.5);
+}
+
+/* Toggle switch */
+.toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    background-color: #4b5563;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.toggle-switch.active {
+    background-color: #16a34a;
+}
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+}
+.toggle-switch.active::after {
+    transform: translateX(20px);
+}

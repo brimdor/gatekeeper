@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}API Keys — Gatekeeper{% endblock %}
+{% set page = "keys" %}
+{% block content %}
+<div class="mb-8 flex items-center justify-between">
+    <div>
+        <h2 class="text-2xl font-bold text-white">API Keys</h2>
+        <p class="text-gray-400 mt-1">Manage API keys for agent access</p>
+    </div>
+    <button onclick="showCreateForm()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm">
+        + Create Key
+    </button>
+</div>
+
+<div id="create-form" class="hidden mb-6 bg-gray-800 rounded-lg p-6 border border-gray-700">
+    <h3 class="text-lg font-semibold text-white mb-4">Create New API Key</h3>
+    <div class="flex gap-4">
+        <input type="text" id="key-name" placeholder="Key name" class="bg-gray-700 border border-gray-600 text-gray-200 rounded px-3 py-2 text-sm flex-1">
+        <select id="key-permissions" class="bg-gray-700 border border-gray-600 text-gray-200 rounded px-3 py-2 text-sm">
+            <option value="*">All Modules (*)</option>
+            <option value="drive">Drive only</option>
+            <option value="gmail">Gmail only</option>
+            <option value="calendar">Calendar only</option>
+            <option value="drive,gmail">Drive + Gmail</option>
+            <option value="drive,calendar">Drive + Calendar</option>
+            <option value="gmail,calendar">Gmail + Calendar</option>
+        </select>
+        <button onclick="createKey()" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded text-sm">Create</button>
+        <button onclick="hideCreateForm()" class="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded text-sm">Cancel</button>
+    </div>
+    <div id="new-key-display" class="hidden mt-4 bg-yellow-900 border border-yellow-600 rounded p-4">
+        <p class="text-yellow-200 font-bold">⚠️ Save this key now — it won't be shown again!</p>
+        <div class="flex items-center gap-2 mt-2">
+            <code id="new-key-value" class="text-white bg-gray-900 px-3 py-1 rounded text-sm flex-1"></code>
+            <button onclick="copyKey()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm">Copy</button>
+        </div>
+    </div>
+</div>
+
+<div id="keys-table" class="text-gray-500">Loading keys...</div>
+<script>
+function showCreateForm() { document.getElementById('create-form').classList.remove('hidden'); }
+function hideCreateForm() { document.getElementById('create-form').classList.add('hidden'); document.getElementById('new-key-display').classList.add('hidden'); }
+
+function copyKey() {
+    const key = document.getElementById('new-key-value').textContent;
+    navigator.clipboard.writeText(key);
+}
+
+async function createKey() {
+    const name = document.getElementById('key-name').value;
+    const perms = document.getElementById('key-permissions').value;
+    const resp = await fetch('/admin/api/keys', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Basic ' + btoa('admin:' + getAdminPassword())},
+        body: JSON.stringify({name: name, permissions: perms})
+    });
+    if (resp.ok) {
+        const data = await resp.json();
+        document.getElementById('new-key-display').classList.remove('hidden');
+        document.getElementById('new-key-value').textContent = data.raw_key;
+        loadKeys();
+    }
+}
+
+async function revokeKey(keyId) {
+    if (!confirm('Are you sure you want to revoke this key?')) return;
+    const resp = await fetch(`/admin/api/keys/${keyId}`, {
+        method: 'DELETE',
+        headers: {'Authorization': 'Basic ' + btoa('admin:' + getAdminPassword())}
+    });
+    if (resp.ok) loadKeys();
+}
+
+function loadKeys() {
+    fetch('/admin/api/keys', {headers: {'Authorization': 'Basic ' + btoa('admin:' + getAdminPassword())}})
+    .then(r => r.json()).then(keys => {
+        if (keys.length === 0) {
+            document.getElementById('keys-table').innerHTML = '<p class="text-gray-500">No keys found</p>';
+            return;
+        }
+        let html = '<table class="w-full text-sm"><thead><tr class="text-gray-400 border-b border-gray-700"><th class="text-left p-2">Name</th><th class="text-left p-2">Prefix</th><th class="text-left p-2">Active</th><th class="text-left p-2">Permissions</th><th class="text-left p-2">Last Used</th><th class="text-left p-2">Actions</th></tr></thead><tbody>';
+        keys.forEach(k => {
+            html += `<tr class="border-b border-gray-800">
+                <td class="p-2">${k.name}</td>
+                <td class="p-2 font-mono">${k.key_prefix}</td>
+                <td class="p-2">${k.is_active ? '<span class="text-green-400">✅</span>' : '<span class="text-red-400">❌</span>'}</td>
+                <td class="p-2 text-xs"><code>${k.permissions}</code></td>
+                <td class="p-2 text-gray-400 text-xs">${k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'Never'}</td>
+                <td class="p-2">${k.is_active ? '<button onclick="revokeKey(' + k.id + ')" class="bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-xs">Revoke</button>' : ''}</td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('keys-table').innerHTML = html;
+    });
+}
+
+function getAdminPassword() { return localStorage.getItem('gatekeeper_admin_pass') || 'admin'; }
+loadKeys();
+</script>
+{% endblock %}

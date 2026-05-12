@@ -1,0 +1,336 @@
+"""FastAPI application assembly, lifespan, and CLI entry point."""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import logging
+import sys
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Optional
+
+import bcrypt
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import select, func
+
+from gatekeeper.config import settings
+from gatekeeper.db import async_session, init_db, engine
+from gatekeeper.models import ApiKey, RoutePolicy
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan — startup and shutdown."""
+    # Startup
+    logger.info("Gatekeeper starting up...")
+    await init_db()
+    logger.info("Database initialized")
+
+    # Seed default route policies for enabled modules
+    await seed_default_policies()
+
+    # Generate default API key if none exist
+    await ensure_default_key()
+
+    logger.info(f"Gatekeeper v{__import__('gatekeeper').__version__} ready on {settings.host}:{settings.port}")
+
+    yield
+
+    # Shutdown
+    logger.info("Gatekeeper shutting down...")
+
+
+async def seed_default_policies():
+    """Seed default RoutePolicy rows for all enabled module routes."""
+    from gatekeeper.modules import load_enabled_modules, get_loaded_modules
+
+    enabled = []
+    if settings.drive_enabled:
+        enabled.append("drive")
+    if settings.gmail_enabled:
+        enabled.append("gmail")
+    if settings.calendar_enabled:
+        enabled.append("calendar")
+
+    # Also load modules even if not explicitly enabled so policies exist
+    # This allows toggling via admin UI later
+    all_modules = ["drive", "gmail", "calendar"]
+    from gatekeeper.modules import load_module
+
+    for name in all_modules:
+        mod = load_module(name)
+        if mod is None:
+            continue
+
+        for route in mod.get_routes():
+            # Check if policy already exists
+            async with async_session() as session:
+                result = await session.execute(
+                    select(RoutePolicy).where(
+                        RoutePolicy.module == name,
+                        RoutePolicy.route == route.route_id,
+                    )
+                )
+                if result.scalar_one_or_none() is None:
+                    # Seed with default
+                    defaults = mod.get_default_policies().get(route.route_id, {})
+                    policy = RoutePolicy(
+                        module=name,
+                        route=route.route_id,
+                        enabled=defaults.get("enabled", route.enabled_by_default),
+                        policy_config=json.dumps(defaults.get("config", route.default_policy)),
+                        description=route.description,
+                    )
+                    session.add(policy)
+                    await session.commit()
+                    logger.debug(f"Seeded policy: {name}.{route.route_id}")
+
+
+async def ensure_default_key():
+    """Generate a default admin API key if none exist."""
+    async with async_session() as session:
+        result = await session.execute(select(ApiKey))
+        existing = result.scalars().all()
+
+        if not existing:
+            raw, hash_val, prefix = ApiKey.generate_key()
+            key = ApiKey(
+                name="default-admin",
+                key_hash=hash_val,
+                key_prefix=prefix,
+                permissions="*",
+            )
+            session.add(key)
+            await session.commit()
+            print(f"\n{'='*60}")
+            print(f"🔑 Default API Key generated (save this — it won't be shown again):")
+            print(f"   {raw}")
+            print(f"{'='*60}\n")
+
+
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
+    from gatekeeper.api.router import create_api_router
+
+    app = FastAPI(
+        title="Gatekeeper",
+        description="Policy gateway for Google Workspace APIs with MCP server integration",
+        version=__import__("gatekeeper").__version__,
+        lifespan=lifespan,
+    )
+
+    # CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Health check
+    @app.get("/health")
+    async def health():
+        return {"status": "ok", "version": __import__("gatekeeper").__version__}
+
+    # API routes
+    api_router = create_api_router()
+    app.include_router(api_router)
+
+    # Admin routes
+    from gatekeeper.admin.routes import create_admin_router
+    from gatekeeper.admin.ui import mount_ui
+
+    admin_router = create_admin_router()
+    app.include_router(admin_router)
+    mount_ui(app)
+
+    # MCP server
+    if settings.mcp_enabled:
+        try:
+            from gatekeeper.mcp_server import mount_mcp_server
+            mount_mcp_server(app)
+            logger.info("MCP server mounted at /mcp")
+        except Exception as e:
+            logger.warning(f"Failed to mount MCP server: {e}")
+
+    return app
+
+
+def cli():
+    """CLI entry point for gatekeeper."""
+    parser = argparse.ArgumentParser(
+        prog="gatekeeper",
+        description="Policy gateway for Google Workspace APIs",
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # serve
+    serve_parser = subparsers.add_parser("serve", help="Start the Gatekeeper server")
+    serve_parser.add_argument("--host", default=None, help="Host to bind to")
+    serve_parser.add_argument("--port", type=int, default=None, help="Port to bind to")
+
+    # init
+    subparsers.add_parser("init", help="Initialize the database and seed default policies")
+
+    # auth
+    subparsers.add_parser("auth", help="Run the Google OAuth desktop authorization flow")
+
+    # key
+    key_parser = subparsers.add_parser("key", help="Manage API keys")
+    key_subparsers = key_parser.add_subparsers(dest="key_command", help="Key commands")
+
+    key_create = key_subparsers.add_parser("create", help="Create a new API key")
+    key_create.add_argument("--name", required=True, help="Name for the key")
+    key_create.add_argument("--permissions", default="*", help="Comma-separated module permissions (default: *)")
+
+    key_list = key_subparsers.add_parser("list", help="List API keys")
+
+    key_revoke = key_subparsers.add_parser("revoke", help="Revoke an API key")
+    key_revoke.add_argument("--prefix", required=True, help="Key prefix to revoke")
+
+    # status
+    subparsers.add_parser("status", help="Show configuration status")
+
+    args = parser.parse_args()
+
+    if args.command == "serve":
+        host = args.host or settings.host
+        port = args.port or settings.port
+        uvicorn.run(
+            "gatekeeper.main:create_app",
+            host=host,
+            port=port,
+            factory=True,
+            reload=settings.debug,
+        )
+
+    elif args.command == "init":
+        asyncio.run(_cli_init())
+
+    elif args.command == "auth":
+        asyncio.run(_cli_auth())
+
+    elif args.command == "key":
+        if args.key_command == "create":
+            asyncio.run(_cli_key_create(args.name, args.permissions))
+        elif args.key_command == "list":
+            asyncio.run(_cli_key_list())
+        elif args.key_command == "revoke":
+            asyncio.run(_cli_key_revoke(args.prefix))
+        else:
+            key_parser.print_help()
+
+    elif args.command == "status":
+        _cli_status()
+
+    else:
+        parser.print_help()
+
+
+async def _cli_init():
+    """Initialize the database."""
+    await init_db()
+    await seed_default_policies()
+    print("✅ Database initialized and default policies seeded.")
+
+
+async def _cli_auth():
+    """Run the Google OAuth authorization flow."""
+    from gatekeeper.google_client import credential_manager
+
+    print("🌐 Opening browser for Google OAuth authorization...")
+    print(f"   Scopes will be requested based on enabled modules.")
+    print(f"   Drive: {settings.drive_enabled}, Gmail: {settings.gmail_enabled}, Calendar: {settings.calendar_enabled}")
+
+    creds = credential_manager.start_auth_flow()
+    if creds:
+        print("✅ Authorization successful! Credentials saved.")
+        print(f"   Scopes: {creds.scopes}")
+    else:
+        print("❌ Authorization failed.")
+        sys.exit(1)
+
+
+async def _cli_key_create(name: str, permissions: str):
+    """Create a new API key."""
+    async with async_session() as session:
+        raw, hash_val, prefix = ApiKey.generate_key()
+        key = ApiKey(
+            name=name,
+            key_hash=hash_val,
+            key_prefix=prefix,
+            permissions=permissions,
+        )
+        session.add(key)
+        await session.commit()
+
+        print(f"\n{'='*60}")
+        print(f"🔑 API Key created: {name}")
+        print(f"   Key:     {raw}")
+        print(f"   Prefix:  {prefix}")
+        print(f"   Permissions: {permissions}")
+        print(f"{'='*60}")
+        print(f"⚠️  Save the key now — it won't be shown again!\n")
+
+
+async def _cli_key_list():
+    """List API keys."""
+    async with async_session() as session:
+        result = await session.execute(select(ApiKey))
+        keys = result.scalars().all()
+
+        if not keys:
+            print("No API keys found. Run 'gatekeeper init' to create a default key.")
+            return
+
+        print(f"\n{'Prefix':<15} {'Name':<20} {'Active':<8} {'Permissions':<20} {'Last Used'}")
+        print("-" * 85)
+        for key in keys:
+            last_used = str(key.last_used_at) if key.last_used_at else "Never"
+            print(f"{key.key_prefix:<15} {key.name:<20} {'✅' if key.is_active else '❌':<8} {key.permissions:<20} {last_used}")
+        print()
+
+
+async def _cli_key_revoke(prefix: str):
+    """Revoke an API key by prefix."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(ApiKey).where(ApiKey.key_prefix == prefix)
+        )
+        key = result.scalar_one_or_none()
+
+        if key:
+            key.is_active = False
+            await session.commit()
+            print(f"✅ Key {prefix} ({key.name}) revoked.")
+        else:
+            print(f"❌ Key with prefix {prefix} not found.")
+
+
+def _cli_status():
+    """Show configuration status."""
+    print(f"\n{'='*50}")
+    print(f"  Gatekeeper Status")
+    print(f"{'='*50}")
+    print(f"  Version:      {__import__('gatekeeper').__version__}")
+    print(f"  Host:         {settings.host}")
+    print(f"  Port:         {settings.port}")
+    print(f"  Debug:        {settings.debug}")
+    print(f"  Database:     {settings.database_url}")
+    print(f"  MCP Enabled:  {settings.mcp_enabled}")
+    print(f"  Modules:")
+    print(f"    Drive:      {'✅' if settings.drive_enabled else '❌'}")
+    print(f"    Gmail:      {'✅' if settings.gmail_enabled else '❌'}")
+    print(f"    Calendar:   {'✅' if settings.calendar_enabled else '❌'}")
+    print(f"  Google OAuth: {'✅ Configured' if settings.google_client_id else '❌ Not configured'}")
+    print(f"  Admin User:   {settings.admin_username}")
+    print(f"{'='*50}\n")

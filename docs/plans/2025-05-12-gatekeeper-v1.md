@@ -150,12 +150,12 @@ gatekeeper/
 **Objective:** Set up the project scaffold with all dependencies defined.
 
 **Acceptance Criteria:**
-- [ ] `pyproject.toml` valid and `uv pip install -e .` succeeds with zero errors
-- [ ] `gatekeeper/__init__.py` exports `__version__` and `import gatekeeper; print(gatekeeper.__version__)` outputs `"0.1.0"`
-- [ ] `gatekeeper/config.py` loads settings from `GATEKEEPER_*` env vars and `ensure_secrets()` generates missing values
-- [ ] `.gitignore` covers `__pycache__/`, `*.pyc`, `.env`, `*.db`, `gatekeeper_token.json`, `data/`, `.venv/`
-- [ ] `.env.example` documents every `GATEKEEPER_*` variable with description and default
-- [ ] `git log` shows initial commit
+- [x] `pyproject.toml` valid and `uv pip install -e .` succeeds with zero errors
+- [x] `gatekeeper/__init__.py` exports `__version__` and `import gatekeeper; print(gatekeeper.__version__)` outputs `"0.1.0"`
+- [x] `gatekeeper/config.py` loads settings from `GATEKEEPER_*` env vars and `ensure_secrets()` generates missing values
+- [x] `.gitignore` covers `__pycache__/`, `*.pyc`, `.env`, `*.db`, `gatekeeper_token.json`, `data/`, `.venv/`
+- [x] `.env.example` documents every `GATEKEEPER_*` variable with description and default
+- [x] `git log` shows initial commit
 
 **Files:**
 - Create: `pyproject.toml`
