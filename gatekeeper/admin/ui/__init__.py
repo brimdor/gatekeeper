@@ -3,19 +3,19 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from jinja2 import Environment, FileSystemLoader
 
-from gatekeeper.auth import require_admin
+import gatekeeper
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
 
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+# Use plain Jinja2 Environment to avoid Starlette TemplateResponse compatibility issues
+jinja_env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
 
 
 def mount_ui(app: FastAPI) -> None:
@@ -24,51 +24,40 @@ def mount_ui(app: FastAPI) -> None:
     # Static files
     app.mount("/admin/static", StaticFiles(directory=str(STATIC_DIR)), name="admin-static")
 
-    # UI pages
+    version = gatekeeper.__version__
+
     @app.get("/admin/", response_class=HTMLResponse)
     async def admin_dashboard(request: Request):
-        return templates.TemplateResponse("dashboard.html", {
-            "request": request,
-            "version": __import__("gatekeeper").__version__,
-            "page": "dashboard",
-        })
+        template = jinja_env.get_template("dashboard.html")
+        html = template.render(version=version, page="dashboard")
+        return HTMLResponse(content=html)
 
     @app.get("/admin/modules", response_class=HTMLResponse)
     async def admin_modules(request: Request):
-        return templates.TemplateResponse("modules.html", {
-            "request": request,
-            "version": __import__("gatekeeper").__version__,
-            "page": "modules",
-        })
+        template = jinja_env.get_template("modules.html")
+        html = template.render(version=version, page="modules")
+        return HTMLResponse(content=html)
 
     @app.get("/admin/routes", response_class=HTMLResponse)
     async def admin_routes(request: Request):
-        return templates.TemplateResponse("routes.html", {
-            "request": request,
-            "version": __import__("gatekeeper").__version__,
-            "page": "routes",
-        })
+        template = jinja_env.get_template("routes.html")
+        html = template.render(version=version, page="routes")
+        return HTMLResponse(content=html)
 
     @app.get("/admin/keys", response_class=HTMLResponse)
     async def admin_keys(request: Request):
-        return templates.TemplateResponse("api_keys.html", {
-            "request": request,
-            "version": __import__("gatekeeper").__version__,
-            "page": "keys",
-        })
+        template = jinja_env.get_template("api_keys.html")
+        html = template.render(version=version, page="keys")
+        return HTMLResponse(content=html)
 
     @app.get("/admin/audit", response_class=HTMLResponse)
     async def admin_audit(request: Request):
-        return templates.TemplateResponse("audit_log.html", {
-            "request": request,
-            "version": __import__("gatekeeper").__version__,
-            "page": "audit",
-        })
+        template = jinja_env.get_template("audit_log.html")
+        html = template.render(version=version, page="audit")
+        return HTMLResponse(content=html)
 
     @app.get("/admin/auth", response_class=HTMLResponse)
     async def admin_auth(request: Request):
-        return templates.TemplateResponse("auth_status.html", {
-            "request": request,
-            "version": __import__("gatekeeper").__version__,
-            "page": "auth",
-        })
+        template = jinja_env.get_template("auth_status.html")
+        html = template.render(version=version, page="auth")
+        return HTMLResponse(content=html)

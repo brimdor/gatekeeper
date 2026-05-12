@@ -153,12 +153,14 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
     mount_ui(app)
 
-    # MCP server
+    # MCP server - graceful fallback if mcp package not available
     if settings.mcp_enabled:
         try:
             from gatekeeper.mcp_server import mount_mcp_server
             mount_mcp_server(app)
             logger.info("MCP server mounted at /mcp")
+        except ImportError:
+            logger.warning("MCP package not installed. Install with: pip install mcp")
         except Exception as e:
             logger.warning(f"Failed to mount MCP server: {e}")
 
