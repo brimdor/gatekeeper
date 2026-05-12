@@ -2,6 +2,7 @@
 
 import pytest
 import pytest_asyncio
+from cryptography.fernet import Fernet
 from sqlalchemy import select
 
 from gatekeeper.db import Base
@@ -10,24 +11,15 @@ from gatekeeper.db import Base
 class TestEncryption:
     """Tests for Fernet encryption helpers."""
 
-    def test_derive_fernet_key_produces_valid_key(self):
-        """derive_fernet_key should produce a 32-byte Fernet-compatible key."""
-        from gatekeeper.encryption import derive_fernet_key
-
-        hex_key = "a" * 64  # 32 bytes = 64 hex chars
-        key = derive_fernet_key(hex_key)
-        assert len(key) == 44  # url-safe base64 of 32 bytes
-
     def test_encrypt_decrypt_roundtrip(self):
         """Encrypting then decrypting should return the original value."""
         from gatekeeper.encryption import encrypt_value, decrypt_value
-
-        # Need to set encryption_key in settings
         from gatekeeper.config import Settings
 
+        fernet_key = Fernet.generate_key().decode()
         settings = Settings(
             _env_file=None,
-            encryption_key="d" * 64,
+            encryption_key=fernet_key,
             secret_key="test",
             admin_password="test",
         )
@@ -35,7 +27,6 @@ class TestEncryption:
 
         # Override the global settings
         import gatekeeper.encryption
-        import gatekeeper.config
 
         original_settings = gatekeeper.encryption.settings
         gatekeeper.encryption.settings = settings
@@ -54,9 +45,10 @@ class TestEncryption:
         from gatekeeper.encryption import encrypt_value
         from gatekeeper.config import Settings
 
+        fernet_key = Fernet.generate_key().decode()
         settings = Settings(
             _env_file=None,
-            encryption_key="e" * 64,
+            encryption_key=fernet_key,
             secret_key="test",
             admin_password="test",
         )
@@ -71,6 +63,34 @@ class TestEncryption:
             ct1 = encrypt_value("same plaintext")
             ct2 = encrypt_value("same plaintext")
             assert ct1 != ct2  # Fernet uses random IVs
+        finally:
+            gatekeeper.encryption.settings = original_settings
+
+    def test_hex_key_backwards_compatibility(self):
+        """Old hex-encoded keys should still work for decryption."""
+        from gatekeeper.encryption import encrypt_value, decrypt_value
+        from gatekeeper.config import Settings
+
+        # Use old hex format key
+        hex_key = "d" * 64
+        settings = Settings(
+            _env_file=None,
+            encryption_key=hex_key,
+            secret_key="test",
+            admin_password="test",
+        )
+        settings.ensure_secrets()
+
+        import gatekeeper.encryption
+
+        original_settings = gatekeeper.encryption.settings
+        gatekeeper.encryption.settings = settings
+
+        try:
+            plaintext = "test with old hex key"
+            encrypted = encrypt_value(plaintext)
+            decrypted = decrypt_value(encrypted)
+            assert decrypted == plaintext
         finally:
             gatekeeper.encryption.settings = original_settings
 

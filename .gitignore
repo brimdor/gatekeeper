@@ -14,8 +14,10 @@ build/
 venv/
 env/
 
-# Environment
+# Environment and secrets
 .env
+.env.local
+gatekeeper_secrets.json
 
 # Database
 *.db

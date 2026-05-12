@@ -158,7 +158,6 @@ def create_app() -> FastAPI:
         try:
             from gatekeeper.mcp_server import mount_mcp_server
             mount_mcp_server(app)
-            logger.info("MCP server mounted at /mcp")
         except ImportError:
             logger.warning("MCP package not installed. Install with: pip install mcp")
         except Exception as e:
@@ -239,9 +238,10 @@ def cli():
 
 
 async def _cli_init():
-    """Initialize the database."""
+    """Initialize the database, seed policies, and create default API key."""
     await init_db()
     await seed_default_policies()
+    await ensure_default_key()
     print("✅ Database initialized and default policies seeded.")
 
 

@@ -1,19 +1,38 @@
+# Gatekeeper - Podman Compose configuration
+# Usage: podman-compose up -d
+#
+# Copy .env.example to .env and fill in your values before starting.
+
 services:
   gatekeeper:
     build: .
+    container_name: gatekeeper
     ports:
       - "8080:8080"
-      - "8081:8081"  # MCP SSE
     volumes:
-      - ./data:/data
+      - gatekeeper-data:/data
+    env_file:
+      - .env
     environment:
+      # These can be set in .env or here directly
+      - GATEKEEPER_HOST=0.0.0.0
+      - GATEKEEPER_PORT=8080
       - GATEKEEPER_DATABASE_URL=sqlite+aiosqlite:////data/gatekeeper.db
       - GATEKEEPER_GOOGLE_TOKEN_FILE=/data/google_token.json
-      - GATEKEEPER_SECRET_KEY=${GATEKEEPER_SECRET_KEY}
-      - GATEKEEPER_ENCRYPTION_KEY=${GATEKEEPER_ENCRYPTION_KEY}
-      - GATEKEEPER_GOOGLE_CLIENT_ID=${GATEKEEPER_GOOGLE_CLIENT_ID}
-      - GATEKEEPER_GOOGLE_CLIENT_SECRET=${GATEKEEPER_GOOGLE_CLIENT_SECRET}
+      # GATEKEEPER_GOOGLE_CLIENT_ID=      # Set in .env
+      # GATEKEEPER_GOOGLE_CLIENT_SECRET=   # Set in .env
       - GATEKEEPER_DRIVE_ENABLED=${GATEKEEPER_DRIVE_ENABLED:-false}
       - GATEKEEPER_GMAIL_ENABLED=${GATEKEEPER_GMAIL_ENABLED:-false}
       - GATEKEEPER_CALENDAR_ENABLED=${GATEKEEPER_CALENDAR_ENABLED:-false}
+      - GATEKEEPER_MCP_ENABLED=${GATEKEEPER_MCP_ENABLED:-true}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  gatekeeper-data:
+    driver: local

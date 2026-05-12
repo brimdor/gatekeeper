@@ -1,50 +1,69 @@
-# Gatekeeper - Multi-stage build for amd64 + arm64
-FROM python:3.11-slim AS builder
+# Gatekeeper - Policy Gateway for Google Workspace APIs
+# Multi-arch build for amd64 + arm64 (RPi compatible)
+# Uses uv for fast Python dependency installation
+
+# ==================== Build Stage ====================
+FROM python:3.12-slim AS builder
 
 # Install uv
-RUN pip install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-WORKDIR /app
+WORKDIR /build
 
-# Copy project files
+# Copy project files for dependency resolution
 COPY pyproject.toml README.md ./
 COPY gatekeeper/ gatekeeper/
 
-# Install dependencies
-RUN uv pip install --system --no-cache -e ".[dev]"
+# Install the package and its dependencies
+RUN uv pip install --system --no-cache .
 
-FROM python:3.11-slim AS runtime
+# ==================== Runtime Stage ====================
+FROM python:3.12-slim AS runtime
 
-# Install runtime dependencies
+LABEL org.opencontainers.image.title="Gatekeeper"
+LABEL org.opencontainers.image.description="Policy gateway for Google Workspace APIs with MCP server integration"
+LABEL org.opencontainers.image.source="https://github.com/brimdor/gatekeeper"
+LABEL org.opencontainers.image.vendor="Brimdor"
+
+# Install runtime system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
-COPY --from=builder /usr/local/bin/ /usr/local/bin/
-COPY --from=builder /app/gatekeeper/ /app/gatekeeper/
+# Copy installed Python packages from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
+COPY --from=builder /usr/local/bin/gatekeeper /usr/local/bin/gatekeeper
+
+# Copy the application code
+COPY gatekeeper/ /app/gatekeeper/
 
 WORKDIR /app
 
-# Create data directory
+# Create persistent data directory
 RUN mkdir -p /data
 
-# Set environment defaults
+# Environment defaults (override via env vars or .env file)
 ENV GATEKEEPER_HOST=0.0.0.0
 ENV GATEKEEPER_PORT=8080
 ENV GATEKEEPER_DATABASE_URL=sqlite+aiosqlite:////data/gatekeeper.db
 ENV GATEKEEPER_GOOGLE_TOKEN_FILE=/data/google_token.json
+ENV GATEKEEPER_SECRET_KEY=
+ENV GATEKEEPER_ENCRYPTION_KEY=
+ENV GATEKEEPER_ADMIN_PASSWORD=
+ENV GATEKEEPER_DRIVE_ENABLED=false
+ENV GATEKEEPER_GMAIL_ENABLED=false
+ENV GATEKEEPER_CALENDAR_ENABLED=false
+ENV GATEKEEPER_MCP_ENABLED=true
 
-# Expose ports
-EXPOSE 8080 8081
+# Expose HTTP port (admin + API) and MCP SSE port
+EXPOSE 8080
 
-# Volume for persistent data
+# Persistent volume for database, tokens, and secrets
 VOLUME ["/data"]
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# Run
+# Entry point
 CMD ["gatekeeper", "serve"]

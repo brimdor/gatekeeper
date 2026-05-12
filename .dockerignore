@@ -17,6 +17,7 @@ env/
 # Environment and secrets
 .env
 .env.local
+gatekeeper_secrets.json
 
 # Database
 *.db
@@ -42,7 +43,6 @@ htmlcov/
 
 # Git
 .git/
-.gitignore
 
 # OS
 .DS_Store

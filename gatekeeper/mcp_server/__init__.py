@@ -1,4 +1,8 @@
-"""MCP server setup — dynamic tool registration from enabled routes."""
+"""MCP server setup — dynamic tool registration from enabled routes.
+
+Uses the MCP Python SDK v1.x (FastMCP) to expose enabled Gatekeeper
+routes as MCP tools discoverable by AI agents over SSE transport.
+"""
 
 from __future__ import annotations
 
@@ -10,33 +14,76 @@ from fastapi import FastAPI
 
 from gatekeeper.config import settings
 from gatekeeper.db import async_session
-from gatekeeper.models import ApiKey, RoutePolicy
+from gatekeeper.models import ApiKey
 from gatekeeper.policy import PolicyEngine
 
 logger = logging.getLogger(__name__)
 
+# Lazy-initialised singleton
+_mcp_instance: "FastMCP | None" = None
 
-def create_mcp_server(app: FastAPI) -> "MCPServer":
-    """Create an MCP server instance that exposes enabled routes as tools.
-    
-    The server dynamically discovers enabled routes from the database,
-    so admin toggles are reflected immediately without restart.
+
+async def _resolve_api_key(raw_key: str) -> ApiKey | None:
+    """Look up an API key by prefix+bcrypt verification.
+
+    Returns the ApiKey record if found and active, else None.
     """
-    try:
-        from mcp.server import MCPServer
-        from mcp.server.sse import SseTransport
-    except ImportError:
-        logger.error("MCP package not installed. Install with: pip install mcp")
-        return None
+    import bcrypt
+    from sqlalchemy import select
 
-    mcp = MCPServer("gatekeeper")
+    async with async_session() as session:
+        result = await session.execute(select(ApiKey).where(ApiKey.is_active == True))  # noqa: E712
+        keys = result.scalars().all()
+        for k in keys:
+            if raw_key.startswith(k.key_prefix):
+                if bcrypt.checkpw(raw_key.encode(), k.key_hash.encode()):
+                    # Touch last_used_at
+                    k.last_used_at = __import__("datetime").datetime.now(
+                        __import__("datetime").timezone.utc
+                    )
+                    await session.commit()
+                    return k
+    return None
 
-    @mcp.list_tools()
-    async def list_tools() -> list[dict[str, Any]]:
-        """List all enabled routes as MCP tools."""
+
+def create_mcp_server() -> "FastMCP":
+    """Create a FastMCP instance that exposes enabled routes as tools.
+
+    Tools are discovered dynamically on each list_tools call so that
+    admin toggles (enabling/disabling routes) take effect immediately
+    without a server restart.
+
+    Tool names follow the pattern:  {module}__{route_id_with_underscores}
+    For example:  gmail__messages_list
+
+    Each tool accepts all the route's input_schema parameters plus a
+    required ``api_key`` string parameter for authentication.
+    """
+    from mcp.server.fastmcp import FastMCP
+
+    mcp = FastMCP(
+        name="gatekeeper",
+        instructions=(
+            "Gatekeeper MCP server — a policy gateway for Google Workspace APIs. "
+            "Each tool proxies a single Google API route through the policy engine. "
+            "You MUST supply an ``api_key`` argument to every tool call for "
+            "authentication.  Available tools depend on which routes are enabled by "
+            "the administrator."
+        ),
+    )
+
+    # ------------------------------------------------------------------ #
+    #  list_tools — dynamically build the tool list from the DB           #
+    # ------------------------------------------------------------------ #
+    @mcp._mcp_server.list_tools()
+    async def list_tools(request):
+        """Return MCP tools for all enabled routes."""
         from gatekeeper.modules import load_module, AVAILABLE_MODULES
 
-        tools = []
+        from mcp.types import Tool as MCPTool
+
+        tools: list[MCPTool] = []
+
         async with async_session() as session:
             policy_engine = PolicyEngine(session)
 
@@ -49,56 +96,79 @@ def create_mcp_server(app: FastAPI) -> "MCPServer":
                     # Check if route is enabled via policy
                     decision = await policy_engine.check_route(module_name, route.route_id)
                     if decision.allowed:
-                        tools.append({
-                            "name": f"{module_name}__{route.route_id.replace('.', '_')}",
-                            "description": route.description,
-                            "inputSchema": route.input_schema,
-                        })
+                        # Merge the route's input_schema with api_key param
+                        schema = dict(route.input_schema)
+                        props = dict(schema.get("properties", {}))
+                        props["api_key"] = {
+                            "type": "string",
+                            "description": "Gatekeeper API key for authentication",
+                        }
+                        required = list(schema.get("required", []))
+                        required.append("api_key")
+
+                        tools.append(
+                            MCPTool(
+                                name=f"{module_name}__{route.route_id.replace('.', '_')}",
+                                description=route.description
+                                or f"{route.method} {route.route_id}",
+                                inputSchema={
+                                    **schema,
+                                    "properties": props,
+                                    "required": required,
+                                },
+                            )
+                        )
 
         return tools
 
-    @mcp.call_tool()
-    async def call_tool(name: str, arguments: dict[str, Any], api_key: str = None) -> Any:
+    # ------------------------------------------------------------------ #
+    #  call_tool — authenticate & proxy through the policy engine         #
+    # ------------------------------------------------------------------ #
+    @mcp._mcp_server.call_tool(validate_input=False)
+    async def call_tool(name: str, arguments: dict[str, Any]) -> list:
         """Call a tool by name, routing through the policy engine."""
         from gatekeeper.api.proxy import GoogleProxy
         from gatekeeper.modules import load_module
+
+        import mcp.types as types
+
+        # Extract and validate the API key
+        api_key = arguments.pop("api_key", None)
+        if not api_key:
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps({"error": True, "message": "API key required (pass as api_key argument)"}),
+                )
+            ]
+
+        key_record = await _resolve_api_key(api_key)
+        if not key_record:
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps({"error": True, "message": "Invalid API key"}),
+                )
+            ]
 
         # Parse module and route from tool name
         # Format: "gmail__messages_list" -> module="gmail", route="gmail.messages.list"
         parts = name.split("__", 1)
         if len(parts) != 2:
-            return {"error": True, "message": f"Invalid tool name: {name}"}
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps({"error": True, "message": f"Invalid tool name: {name}"}),
+                )
+            ]
 
         module_name = parts[0]
         route_part = parts[1]
-        # Convert underscores back to dots for route_id
         route_id = f"{module_name}.{route_part.replace('_', '.')}"
 
-        # Validate API key
-        if not api_key:
-            return {"error": True, "message": "API key required (pass as api_key in metadata)"}
-
         async with async_session() as session:
-            # Find the API key
-            from sqlalchemy import select
-            from gatekeeper.auth import validate_api_key_header
-
-            result = await session.execute(select(ApiKey).where(ApiKey.is_active == True))  # noqa: E712
-            keys = result.scalars().all()
-
-            import bcrypt
-            key_record = None
-            for k in keys:
-                if api_key.startswith(k.key_prefix):
-                    if bcrypt.checkpw(api_key.encode(), k.key_hash.encode()):
-                        key_record = k
-                        break
-
-            if not key_record:
-                return {"error": True, "message": "Invalid API key"}
-
             proxy = GoogleProxy(session)
-            return await proxy.call_google(
+            result = await proxy.call_google(
                 module_name=module_name,
                 route_id=route_id,
                 params=arguments,
@@ -107,29 +177,47 @@ def create_mcp_server(app: FastAPI) -> "MCPServer":
                 request_method="POST",
             )
 
+        # Return as MCP content
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps(result) if isinstance(result, dict) else str(result),
+            )
+        ]
+
     return mcp
 
 
 def mount_mcp_server(app: FastAPI) -> None:
-    """Mount the MCP SSE server onto the FastAPI app."""
-    mcp = create_mcp_server(app)
-    if mcp is None:
-        logger.warning("MCP server not created — mcp package may not be installed")
-        return
+    """Mount the MCP SSE server onto the FastAPI app at /mcp.
+
+    This creates a Starlette sub-app via FastMCP.sse_app() and mounts
+    it under FastAPI so that:
+
+      GET  /mcp/sse        → SSE endpoint (client connects here)
+      POST /mcp/messages/  → message endpoint (client sends JSON-RPC here)
+
+    The SSE transport lets remote AI agents discover and call Gatekeeper
+    tools over HTTP.
+    """
+    global _mcp_instance
 
     try:
-        from mcp.server.sse import SseTransport
+        from starlette.routing import Mount
 
-        sse = SseTransport("/mcp")
+        mcp = create_mcp_server()
+        _mcp_instance = mcp
 
-        @app.get("/mcp")
-        async def mcp_sse(request):
-            return await sse.handle_request(request)
+        # Get the Starlette SSE app from FastMCP
+        # mount_path="/mcp" makes the SSE and message paths relative to /mcp
+        starlette_app = mcp.sse_app(mount_path="/mcp")
 
-        @app.post("/mcp")
-        async def mcp_post(request):
-            return await sse.handle_request(request)
+        # Mount the Starlette app as a sub-app under FastAPI
+        app.mount("/mcp", starlette_app)
 
         logger.info("MCP SSE server mounted at /mcp")
-    except Exception as e:
-        logger.error(f"Failed to mount MCP server: {e}")
+
+    except ImportError as exc:
+        logger.warning("MCP package not installed. Install with: pip install mcp — %s", exc)
+    except Exception as exc:
+        logger.error("Failed to mount MCP server: %s", exc, exc_info=True)
