@@ -17,11 +17,6 @@ classifiers = [
     "Topic :: Security",
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
 ]
-
-[project.urls]
-Homepage = "https://github.com/brimdor/gatekeeper"
-Repository = "https://github.com/brimdor/gatekeeper"
-Issues = "https://github.com/brimdor/gatekeeper/issues"
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
@@ -48,6 +43,11 @@ dev = [
     "ruff>=0.4",
     "beautifulsoup4>=4.12",
 ]
+
+[project.urls]
+Homepage = "https://github.com/brimdor/gatekeeper"
+Repository = "https://github.com/brimdor/gatekeeper"
+Issues = "https://github.com/brimdor/gatekeeper/issues"
 
 [project.scripts]
 gatekeeper = "gatekeeper.main:cli"
