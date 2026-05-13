@@ -35,6 +35,8 @@ Gatekeeper sits between your AI agents and Google's APIs, acting as a policy lay
                               └──────────────────────────┘
 ```
 
+For the full step-by-step walkthrough, see **[Setup Guide](docs/SETUP.md)**.
+
 ## Quick Start
 
 ### Option 1: One-line install (recommended)
