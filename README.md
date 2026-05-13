@@ -82,18 +82,38 @@ nano .env
 
 ### 2. Google OAuth Setup
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (or select existing)
-3. Enable the APIs you need: **Drive**, **Gmail**, **Calendar**
-4. Go to **APIs & Services → Credentials**
-5. Create an **OAuth 2.0 Client ID** (Desktop app type)
-6. Copy the Client ID and Client Secret to your `.env`
+Gatekeeper supports two OAuth authorization flows:
 
-### 3. Initialize and authorize
+#### Device Authorization (recommended — works anywhere)
 
 ```bash
-# Initialize database and seed default policies
-gatekeeper init
+gatekeeper auth
+```
+
+This displays a URL and a code. Open the URL on **any device** (phone, laptop, tablet), enter the code, and authorize. No browser on the server needed — perfect for headless machines and containers.
+
+#### Desktop Browser (local machine only)
+
+```bash
+gatekeeper auth --flow desktop
+```
+
+Opens a browser on the local machine and captures the redirect automatically. Use this when you're running Gatekeeper on your desktop.
+
+#### Google Cloud Setup (one-time)
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing
+3. Enable the APIs you need: Drive, Gmail, Calendar
+4. Go to **APIs & Services → Credentials**
+5. Create an **OAuth 2.0 Client ID** (Desktop app type)
+6. Copy the Client ID and Client Secret to your `.env`:
+   ```bash
+   GATEKEEPER_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   GATEKEEPER_GOOGLE_CLIENT_SECRET=GOCSPX-your-secret
+   ```
+7. Go to **OAuth consent screen** → add your email as a test user
+8. Run `gatekeeper auth`
 
 # Authorize with Google (opens browser)
 gatekeeper auth
@@ -242,7 +262,8 @@ curl -u admin:password -X PATCH http://localhost:8080/admin/api/routes/1 \
 ```bash
 gatekeeper serve              # Start the server
 gatekeeper init               # Initialize database and seed policies
-gatekeeper auth               # Run Google OAuth authorization flow
+gatekeeper auth               # Google OAuth — device flow (link + code, works anywhere)
+gatekeeper auth --flow desktop # Google OAuth — desktop flow (opens browser locally)
 gatekeeper key create --name NAME [--permissions PERMS]   # Create API key
 gatekeeper key list           # List API keys
 gatekeeper key revoke --prefix PREFIX   # Revoke a key

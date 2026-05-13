@@ -1,17 +1,15 @@
-"""Google OAuth credential management — desktop app flow with encrypted token storage."""
+"""Google OAuth credential management — device auth flow and desktop flow with encrypted token storage."""
 
 from __future__ import annotations
 
-import base64
-import hashlib
 import json
 import logging
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import time
 from pathlib import Path
 from typing import Optional
-from urllib.parse import parse_qs, urlparse
 
+import httpx
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
@@ -20,47 +18,22 @@ from gatekeeper.encryption import decrypt_value, encrypt_value
 
 logger = logging.getLogger(__name__)
 
-
-class _CallbackHandler(BaseHTTPRequestHandler):
-    """HTTP handler for the OAuth redirect callback."""
-
-    auth_code: Optional[str] = None
-    error: Optional[str] = None
-
-    def do_GET(self):
-        parsed = urlparse(self.path)
-        params = parse_qs(parsed.query)
-
-        if "code" in params:
-            _CallbackHandler.auth_code = params["code"][0]
-            self.send_response(200)
-            self.send_header("Content-type", "text/html")
-            self.end_headers()
-            self.wfile.write(
-                b"<html><body><h1>Authorization successful!</h1>"
-                b"<p>You can close this window.</p></body></html>"
-            )
-        elif "error" in params:
-            _CallbackHandler.error = params["error"][0]
-            self.send_response(400)
-            self.send_header("Content-type", "text/html")
-            self.end_headers()
-            error_msg = f"Error: {params['error'][0]}"
-            self.wfile.write(
-                b"<html><body><h1>Authorization failed</h1>"
-                b"<p>" + error_msg.encode() + b"</p></body></html>"
-            )
-        else:
-            self.send_response(400)
-            self.end_headers()
-
-    def log_message(self, format, *args):
-        """Suppress default HTTP server logging."""
-        pass
+# Google OAuth endpoints
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_DEVICE_CODE_URL = "https://oauth2.googleapis.com/device/code"
 
 
 class GoogleCredentialManager:
-    """Manages Google OAuth2 credentials — load, refresh, and store tokens."""
+    """Manages Google OAuth2 credentials — load, refresh, and store tokens.
+
+    Supports two auth flows:
+    1. Device authorization flow (default) — user visits a URL and enters a code.
+       Works from any device, no local browser needed. Ideal for headless servers
+       and remote setups.
+    2. Desktop app flow — opens a browser on the local machine, captures the
+       redirect automatically. Better UX when running locally.
+    """
 
     def __init__(self, token_path: Optional[Path] = None):
         self.token_path = token_path or Path(settings.google_token_file)
@@ -84,7 +57,7 @@ class GoogleCredentialManager:
             creds = Credentials(
                 token=data.get("token"),
                 refresh_token=data.get("refresh_token"),
-                token_uri=data.get("token_uri", "https://oauth2.googleapis.com/token"),
+                token_uri=data.get("token_uri", GOOGLE_TOKEN_URL),
                 client_id=settings.google_client_id,
                 client_secret=settings.google_client_secret,
                 scopes=data.get("scopes", []),
@@ -137,56 +110,6 @@ class GoogleCredentialManager:
         self.token_path.write_text(encrypted_data)
         logger.info("Credentials saved (encrypted)")
 
-    def start_auth_flow(self, scopes: Optional[list[str]] = None) -> Optional[Credentials]:
-        """Run the desktop OAuth flow.
-
-        Starts a local HTTP server, opens the browser for authorization,
-        captures the redirect, exchanges the auth code for tokens,
-        and saves encrypted credentials.
-
-        Args:
-            scopes: OAuth scopes to request. Defaults to all enabled module scopes.
-
-        Returns:
-            Valid credentials on success, None on failure.
-        """
-        from google_auth_oauthlib.flow import InstalledAppFlow
-
-        if not settings.google_client_id or not settings.google_client_secret:
-            logger.error("Google OAuth client ID/secret not configured")
-            print("ERROR: Set GATEKEEPER_GOOGLE_CLIENT_ID and GATEKEEPER_GOOGLE_CLIENT_SECRET")
-            return None
-
-        # Determine scopes from enabled modules
-        if scopes is None:
-            scopes = self._get_enabled_scopes()
-
-        if not scopes:
-            scopes = ["https://www.googleapis.com/auth/gmail.readonly"]
-
-        client_config = {
-            "installed": {
-                "client_id": settings.google_client_id,
-                "client_secret": settings.google_client_secret,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": ["http://localhost"],
-            }
-        }
-
-        try:
-            flow = InstalledAppFlow.from_client_config(client_config, scopes=scopes)
-            creds = flow.run_local_server(port=0, open_browser=True)
-
-            self._credentials = creds
-            self._save_credentials()
-            logger.info("OAuth flow completed successfully")
-            return creds
-        except Exception as e:
-            logger.error(f"OAuth flow failed: {e}")
-            print(f"ERROR: OAuth flow failed: {e}")
-            return None
-
     def _get_enabled_scopes(self) -> list[str]:
         """Get scopes required by all enabled modules."""
         from gatekeeper.modules import load_module
@@ -200,9 +123,13 @@ class GoogleCredentialManager:
         if settings.calendar_enabled:
             enabled.append("calendar")
 
-        # If nothing enabled, use all modules
+        # If nothing enabled, use read-only scopes for all modules
         if not enabled:
-            enabled = ["drive", "gmail", "calendar"]
+            return [
+                "https://www.googleapis.com/auth/drive.readonly",
+                "https://www.googleapis.com/auth/gmail.readonly",
+                "https://www.googleapis.com/auth/calendar.readonly",
+            ]
 
         for name in enabled:
             mod = load_module(name)
@@ -210,6 +137,221 @@ class GoogleCredentialManager:
                 scopes.update(mod.required_scopes)
 
         return list(scopes)
+
+    def start_device_auth_flow(self, scopes: Optional[list[str]] = None) -> Optional[Credentials]:
+        """Run the Google Device Authorization flow (link + code).
+
+        This is the recommended flow for headless servers and remote setups.
+        The user visits a URL on any device and enters a code — no local browser
+        or redirect needed.
+
+        Steps:
+        1. POST to Google's device code endpoint → get user_code + verification_url
+        2. Display the URL and code to the user
+        3. Poll the token endpoint until the user authorizes
+        4. Exchange for tokens and save encrypted credentials
+
+        Args:
+            scopes: OAuth scopes to request. Defaults to all enabled module scopes.
+
+        Returns:
+            Valid credentials on success, None on failure.
+        """
+        if not settings.google_client_id or not settings.google_client_secret:
+            logger.error("Google OAuth client ID/secret not configured")
+            print("\n❌ ERROR: Set GATEKEEPER_GOOGLE_CLIENT_ID and GATEKEEPER_GOOGLE_CLIENT_SECRET")
+            print("   Add them to your .env file or environment variables.\n")
+            return None
+
+        if scopes is None:
+            scopes = self._get_enabled_scopes()
+
+        if not scopes:
+            scopes = [
+                "https://www.googleapis.com/auth/drive.readonly",
+                "https://www.googleapis.com/auth/gmail.readonly",
+                "https://www.googleapis.com/auth/calendar.readonly",
+            ]
+
+        # Step 1: Get device code
+        try:
+            with httpx.Client(timeout=30) as client:
+                response = client.post(
+                    GOOGLE_DEVICE_CODE_URL,
+                    data={
+                        "client_id": settings.google_client_id,
+                        "scope": " ".join(scopes),
+                    },
+                )
+                response.raise_for_status()
+                device_data = response.json()
+        except httpx.HTTPError as e:
+            logger.error(f"Device code request failed: {e}")
+            print(f"\n❌ ERROR: Failed to get device code: {e}\n")
+            return None
+
+        user_code = device_data["user_code"]
+        verification_url = device_data["verification_url"]
+        device_code = device_data["device_code"]
+        interval = device_data.get("interval", 5)
+        expires_in = device_data.get("expires_in", 900)
+
+        # Step 2: Display URL and code
+        print(f"\n{'=' * 60}")
+        print("🔐 Google Account Authorization")
+        print(f"{'=' * 60}")
+        print(f"\n  1. Open this URL on any device:")
+        print(f"     {verification_url}\n")
+        print(f"  2. Enter this code:")
+        print(f"     {user_code}\n")
+        print(f"  3. Authorize Gatekeeper to access your Google data.")
+        print(f"\n  ⏳ Waiting for authorization (expires in {expires_in // 60} minutes)...")
+        print(f"{'=' * 60}\n")
+
+        # Step 3: Poll for token
+        start_time = time.time()
+        while time.time() - start_time < expires_in:
+            time.sleep(interval)
+
+            try:
+                with httpx.Client(timeout=30) as client:
+                    token_response = client.post(
+                        GOOGLE_TOKEN_URL,
+                        data={
+                            "client_id": settings.google_client_id,
+                            "client_secret": settings.google_client_secret,
+                            "device_code": device_code,
+                            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                        },
+                    )
+                    token_data = token_response.json()
+
+                    if token_response.status_code == 200:
+                        # Success!
+                        creds = Credentials(
+                            token=token_data["access_token"],
+                            refresh_token=token_data.get("refresh_token"),
+                            token_uri=GOOGLE_TOKEN_URL,
+                            client_id=settings.google_client_id,
+                            client_secret=settings.google_client_secret,
+                            scopes=scopes,
+                        )
+                        self._credentials = creds
+                        self._save_credentials()
+
+                        print(f"{'=' * 60}")
+                        print("✅ Authorization successful!")
+                        print(f"   Scopes: {', '.join(scopes)}")
+                        print(f"   Token saved to: {self.token_path}")
+                        print(f"{'=' * 60}\n")
+
+                        logger.info("OAuth device flow completed successfully")
+                        return creds
+
+                    error = token_data.get("error")
+                    if error == "authorization_pending":
+                        # User hasn't authorized yet, keep polling
+                        continue
+                    elif error == "slow_down":
+                        # Increase interval
+                        interval += 5
+                        continue
+                    elif error == "expired_token":
+                        print("\n❌ Authorization timed out. Please try again.\n")
+                        return None
+                    elif error == "access_denied":
+                        print("\n❌ Authorization denied by user.\n")
+                        return None
+                    else:
+                        logger.error(f"Unexpected token error: {error}")
+                        print(f"\n❌ Authorization error: {error}\n")
+                        return None
+
+            except httpx.HTTPError as e:
+                logger.warning(f"Token poll error (will retry): {e}")
+                continue
+
+        print("\n❌ Authorization timed out. Please try again.\n")
+        return None
+
+    def start_desktop_auth_flow(self, scopes: Optional[list[str]] = None) -> Optional[Credentials]:
+        """Run the desktop OAuth flow (opens browser on local machine).
+
+        This is the traditional OAuth flow — starts a local HTTP server,
+        opens the browser, captures the redirect, and exchanges the code.
+        Use this when running Gatekeeper on the same machine as your browser.
+
+        Args:
+            scopes: OAuth scopes to request. Defaults to all enabled module scopes.
+
+        Returns:
+            Valid credentials on success, None on failure.
+        """
+        from google_auth_oauthlib.flow import InstalledAppFlow
+
+        if not settings.google_client_id or not settings.google_client_secret:
+            logger.error("Google OAuth client ID/secret not configured")
+            print("\n❌ ERROR: Set GATEKEEPER_GOOGLE_CLIENT_ID and GATEKEEPER_GOOGLE_CLIENT_SECRET")
+            print("   Add them to your .env file or environment variables.\n")
+            return None
+
+        if scopes is None:
+            scopes = self._get_enabled_scopes()
+
+        if not scopes:
+            scopes = [
+                "https://www.googleapis.com/auth/drive.readonly",
+                "https://www.googleapis.com/auth/gmail.readonly",
+                "https://www.googleapis.com/auth/calendar.readonly",
+            ]
+
+        client_config = {
+            "installed": {
+                "client_id": settings.google_client_id,
+                "client_secret": settings.google_client_secret,
+                "auth_uri": GOOGLE_AUTH_URL,
+                "token_uri": GOOGLE_TOKEN_URL,
+                "redirect_uris": ["http://localhost"],
+            }
+        }
+
+        try:
+            flow = InstalledAppFlow.from_client_config(client_config, scopes=scopes)
+            creds = flow.run_local_server(port=0, open_browser=True)
+
+            self._credentials = creds
+            self._save_credentials()
+
+            print(f"\n{'=' * 60}")
+            print("✅ Authorization successful (desktop flow)!")
+            print(f"   Scopes: {', '.join(scopes)}")
+            print(f"   Token saved to: {self.token_path}")
+            print(f"{'=' * 60}\n")
+
+            logger.info("OAuth desktop flow completed successfully")
+            return creds
+        except Exception as e:
+            logger.error(f"OAuth desktop flow failed: {e}")
+            print(f"\n❌ OAuth flow failed: {e}\n")
+            return None
+
+    def start_auth_flow(self, flow: str = "device", scopes: Optional[list[str]] = None) -> Optional[Credentials]:
+        """Run an OAuth authorization flow.
+
+        Args:
+            flow: Authorization flow to use.
+                - "device" (default): Device Authorization flow — user visits a URL
+                  and enters a code. Works from any device, no local browser needed.
+                - "desktop": Opens browser on local machine, captures redirect automatically.
+            scopes: OAuth scopes to request. Defaults to all enabled module scopes.
+
+        Returns:
+            Valid credentials on success, None on failure.
+        """
+        if flow == "desktop":
+            return self.start_desktop_auth_flow(scopes=scopes)
+        else:
+            return self.start_device_auth_flow(scopes=scopes)
 
     def get_status(self) -> dict:
         """Return auth status information."""

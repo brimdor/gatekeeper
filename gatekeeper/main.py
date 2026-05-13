@@ -183,7 +183,13 @@ def cli():
     subparsers.add_parser("init", help="Initialize the database and seed default policies")
 
     # auth
-    subparsers.add_parser("auth", help="Run the Google OAuth desktop authorization flow")
+    auth_parser = subparsers.add_parser("auth", help="Run the Google OAuth authorization flow")
+    auth_parser.add_argument(
+        "--flow",
+        choices=["device", "desktop"],
+        default="device",
+        help="Auth flow: 'device' (link + code, works anywhere) or 'desktop' (opens browser locally). Default: device",
+    )
 
     # key
     key_parser = subparsers.add_parser("key", help="Manage API keys")
@@ -218,7 +224,7 @@ def cli():
         asyncio.run(_cli_init())
 
     elif args.command == "auth":
-        asyncio.run(_cli_auth())
+        asyncio.run(_cli_auth(args.flow))
 
     elif args.command == "key":
         if args.key_command == "create":
@@ -245,15 +251,19 @@ async def _cli_init():
     print("✅ Database initialized and default policies seeded.")
 
 
-async def _cli_auth():
+async def _cli_auth(flow: str = "device"):
     """Run the Google OAuth authorization flow."""
     from gatekeeper.google_client import credential_manager
 
-    print("🌐 Opening browser for Google OAuth authorization...")
+    if flow == "desktop":
+        print("🌐 Opening browser for Google OAuth authorization (desktop flow)...")
+    else:
+        print("🔐 Starting Google Device Authorization flow (link + code)...")
+        print("   You'll open a URL and enter a code on any device.")
     print(f"   Scopes will be requested based on enabled modules.")
     print(f"   Drive: {settings.drive_enabled}, Gmail: {settings.gmail_enabled}, Calendar: {settings.calendar_enabled}")
 
-    creds = credential_manager.start_auth_flow()
+    creds = credential_manager.start_auth_flow(flow=flow)
     if creds:
         print("✅ Authorization successful! Credentials saved.")
         print(f"   Scopes: {creds.scopes}")
