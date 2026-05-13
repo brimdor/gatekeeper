@@ -26,39 +26,37 @@
 let currentOffset = 0;
 const pageSize = 20;
 
-function loadAudit() {
+async function loadAudit() {
     const module = document.getElementById('filter-module').value;
     const prefix = document.getElementById('filter-prefix').value;
     let url = `/admin/api/audit?limit=${pageSize}&offset=${currentOffset}`;
     if (module) url += `&module=${module}`;
     if (prefix) url += `&key_prefix=${prefix}`;
 
-    fetch(url, {headers: {'Authorization': 'Basic ' + btoa('admin:' + getAdminPassword())}})
-    .then(r => r.json()).then(entries => {
-        if (entries.length === 0) {
-            document.getElementById('audit-table').innerHTML = '<p class="text-gray-500">No entries found</p>';
-            return;
-        }
-        let html = '<table class="w-full text-sm"><thead><tr class="text-gray-400 border-b border-gray-700"><th class="text-left p-2">Time</th><th class="text-left p-2">Key</th><th class="text-left p-2">Module</th><th class="text-left p-2">Route</th><th class="text-left p-2">Method</th><th class="text-left p-2">Path</th><th class="text-left p-2">Status</th></tr></thead><tbody>';
-        entries.forEach(e => {
-            const sc = e.status_code;
-            const statusClass = sc < 300 ? 'text-green-400' : sc < 500 ? 'text-yellow-400' : 'text-red-400';
-            html += `<tr class="border-b border-gray-800">
-                <td class="p-2 text-gray-300 text-xs">${e.created_at ? new Date(e.created_at).toLocaleString() : ''}</td>
-                <td class="p-2 font-mono text-xs">${e.api_key_prefix}</td>
-                <td class="p-2">${e.module}</td>
-                <td class="p-2 font-mono text-blue-300 text-xs">${e.route}</td>
-                <td class="p-2 text-xs">${e.method}</td>
-                <td class="p-2 text-gray-400 text-xs">${e.path}</td>
-                <td class="p-2 ${statusClass} font-bold">${sc}</td>
-            </tr>`;
-        });
-        html += '</tbody></table>';
-        document.getElementById('audit-table').innerHTML = html;
+    const entries = await fetchJSON(url);
+    if (entries.length === 0) {
+        document.getElementById('audit-table').innerHTML = '<p class="text-gray-500">No entries found</p>';
+        return;
+    }
+    let html = '<table class="w-full text-sm"><thead><tr class="text-gray-400 border-b border-gray-700"><th class="text-left p-2">Time</th><th class="text-left p-2">Key</th><th class="text-left p-2">Module</th><th class="text-left p-2">Route</th><th class="text-left p-2">Method</th><th class="text-left p-2">Path</th><th class="text-left p-2">Status</th></tr></thead><tbody>';
+    entries.forEach(e => {
+        const sc = e.status_code;
+        const statusClass = sc < 300 ? 'text-green-400' : sc < 500 ? 'text-yellow-400' : 'text-red-400';
+        html += `<tr class="border-b border-gray-800">
+            <td class="p-2 text-gray-300 text-xs">${e.created_at ? new Date(e.created_at).toLocaleString() : ''}</td>
+            <td class="p-2 font-mono text-xs">${e.api_key_prefix}</td>
+            <td class="p-2">${e.module}</td>
+            <td class="p-2 font-mono text-blue-300 text-xs">${e.route}</td>
+            <td class="p-2 text-xs">${e.method}</td>
+            <td class="p-2 text-gray-400 text-xs">${e.path}</td>
+            <td class="p-2 ${statusClass} font-bold">${sc}</td>
+        </tr>`;
     });
+    html += '</tbody></table>';
+    document.getElementById('audit-table').innerHTML = html;
 }
 
-function getAdminPassword() { return localStorage.getItem('gatekeeper_admin_pass') || 'admin'; }
-loadAudit();
+// pageInit called by auth gate in base.html after login confirmed
+function pageInit() { loadAudit(); }
 </script>
 {% endblock %}

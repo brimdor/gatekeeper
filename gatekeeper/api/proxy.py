@@ -7,6 +7,7 @@ import logging
 from typing import Any, Optional
 
 import httpx
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gatekeeper.auth import validate_api_key
@@ -45,7 +46,7 @@ class GoogleProxy:
         api_key_record: ApiKey,
         request_path: str = "",
         request_method: str = "GET",
-    ) -> dict[str, Any]:
+    ) -> JSONResponse:
         """Proxy a request to Google API through the policy engine.
 
         1. Check policy (allow/deny)
@@ -54,7 +55,9 @@ class GoogleProxy:
         4. Call Google API
         5. Apply response filters
         6. Log to audit
-        7. Return filtered response
+        7. Return filtered response with correct HTTP status code
+
+        Returns a JSONResponse with the appropriate HTTP status code.
         """
         # Check policy
         decision = await self.policy_engine.check_route(
@@ -71,7 +74,10 @@ class GoogleProxy:
                 status_code=403,
                 response_summary=decision.reason,
             )
-            return {"error": True, "status": 403, "message": decision.reason}
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "status": 403, "message": decision.reason},
+            )
 
         # Find the module and route
         modules = get_loaded_modules()
@@ -79,7 +85,10 @@ class GoogleProxy:
         if not module:
             module = load_module(module_name)
             if not module:
-                return {"error": True, "status": 404, "message": f"Module {module_name} not found"}
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": True, "status": 404, "message": f"Module {module_name} not found"},
+                )
 
         route = None
         for r in module.get_routes():
@@ -88,7 +97,10 @@ class GoogleProxy:
                 break
 
         if not route:
-            return {"error": True, "status": 404, "message": f"Route {route_id} not found"}
+            return JSONResponse(
+                status_code=404,
+                content={"error": True, "status": 404, "message": f"Route {route_id} not found"},
+            )
 
         # Apply request transforms
         transformed_params = self.policy_engine.apply_request_transforms(
@@ -98,28 +110,39 @@ class GoogleProxy:
         # Get Google credentials
         creds = credential_manager.get_credentials()
         if not creds or not creds.token:
-            return {"error": True, "status": 401, "message": "Google credentials not configured. Run 'gatekeeper auth'."}
+            return JSONResponse(
+                status_code=401,
+                content={"error": True, "status": 401, "message": "Google credentials not configured. Run 'gatekeeper auth'."},
+            )
 
         # Build Google API URL
-        api_prefix = MODULE_API_MAP.get(module_name, f"/{module_name}/v1")
-        # Replace path parameters (e.g., {fileId} -> actual value)
+        # Normalize param keys: snake_case → camelCase to match google_path placeholders
+        # e.g., "file_id" → "fileId", "calendar_id" → "calendarId"
+        normalized_params = {}
+        for key, value in transformed_params.items():
+            parts = key.split("_")
+            camel_key = parts[0] + "".join(p.capitalize() for p in parts[1:])
+            normalized_params[camel_key] = value
+
+        # Replace path parameters (e.g., {calendarId} -> actual value) in google_path
         google_path = route.google_path
-        for key, value in list(transformed_params.items()):
+        for key, value in list(normalized_params.items()):
             placeholder = "{" + key + "}"
             if placeholder in google_path:
                 google_path = google_path.replace(placeholder, str(value))
-                del transformed_params[key]
+                del normalized_params[key]
 
-        url = f"{GOOGLE_API_BASE}{api_prefix}{google_path.replace(MODULE_API_MAP.get(module_name, ''), '')}"
-        # For modules that already include the full path in google_path
+        # Construct the final URL
         if route.google_path.startswith("/"):
-            url = f"{GOOGLE_API_BASE}{route.google_path}"
-            # Replace path params in the full URL too
-            for key, value in list(transformed_params.items()):
-                placeholder = "{" + key + "}"
-                if placeholder in url:
-                    url = url.replace(placeholder, str(value))
-                    del transformed_params[key]
+            # google_path already includes full API path (e.g., /calendar/v3/...)
+            url = f"{GOOGLE_API_BASE}{google_path}"
+        else:
+            # Relative path — prepend the module API prefix
+            api_prefix = MODULE_API_MAP.get(module_name, f"/{module_name}/v1")
+            url = f"{GOOGLE_API_BASE}{api_prefix}/{google_path}"
+
+        # Remove path params from normalized_params — remaining ones are query/body params
+        # (path params were already extracted and substituted above)
 
         # Make the request
         headers = {"Authorization": f"Bearer {creds.token}"}
@@ -127,15 +150,17 @@ class GoogleProxy:
         try:
             async with httpx.AsyncClient() as client:
                 if route.method == "GET":
-                    response = await client.get(url, params=transformed_params, headers=headers)
+                    response = await client.get(url, params=normalized_params, headers=headers)
                 elif route.method == "POST":
-                    response = await client.post(url, json=transformed_params, headers=headers)
+                    response = await client.post(url, json=normalized_params, headers=headers)
                 elif route.method == "PATCH":
-                    response = await client.patch(url, json=transformed_params, headers=headers)
+                    response = await client.patch(url, json=normalized_params, headers=headers)
                 elif route.method == "DELETE":
                     response = await client.delete(url, headers=headers)
+                elif route.method == "PUT":
+                    response = await client.put(url, json=normalized_params, headers=headers)
                 else:
-                    response = await client.request(route.method, url, json=transformed_params, headers=headers)
+                    response = await client.request(route.method, url, json=normalized_params, headers=headers)
 
             # Parse response
             try:
@@ -160,7 +185,8 @@ class GoogleProxy:
                 response_summary=str(response_data)[:200] if response_data else None,
             )
 
-            return response_data
+            # Return with the Google API's status code
+            return JSONResponse(status_code=response.status_code, content=response_data)
 
         except httpx.HTTPError as e:
             logger.error(f"Google API request failed: {e}")
@@ -173,7 +199,10 @@ class GoogleProxy:
                 status_code=502,
                 response_summary=f"HTTP error: {str(e)[:150]}",
             )
-            return {"error": True, "status": 502, "message": f"Google API request failed: {e}"}
+            return JSONResponse(
+                status_code=502,
+                content={"error": True, "status": 502, "message": f"Google API request failed: {e}"},
+            )
 
         except Exception as e:
             logger.error(f"Unexpected error in proxy: {e}")
@@ -186,4 +215,7 @@ class GoogleProxy:
                 status_code=500,
                 response_summary=f"Internal error: {str(e)[:150]}",
             )
-            return {"error": True, "status": 500, "message": f"Internal error: {e}"}
+            return JSONResponse(
+                status_code=500,
+                content={"error": True, "status": 500, "message": f"Internal error: {e}"},
+            )

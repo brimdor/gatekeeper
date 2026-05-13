@@ -50,52 +50,44 @@ function copyKey() {
 async function createKey() {
     const name = document.getElementById('key-name').value;
     const perms = document.getElementById('key-permissions').value;
-    const resp = await fetch('/admin/api/keys', {
+    const data = await fetchJSON('/admin/api/keys', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json', 'Authorization': 'Basic ' + btoa('admin:' + getAdminPassword())},
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({name: name, permissions: perms})
     });
-    if (resp.ok) {
-        const data = await resp.json();
-        document.getElementById('new-key-display').classList.remove('hidden');
-        document.getElementById('new-key-value').textContent = data.raw_key;
-        loadKeys();
-    }
+    document.getElementById('new-key-display').classList.remove('hidden');
+    document.getElementById('new-key-value').textContent = data.raw_key;
+    loadKeys();
 }
 
 async function revokeKey(keyId) {
     if (!confirm('Are you sure you want to revoke this key?')) return;
-    const resp = await fetch(`/admin/api/keys/${keyId}`, {
-        method: 'DELETE',
-        headers: {'Authorization': 'Basic ' + btoa('admin:' + getAdminPassword())}
-    });
-    if (resp.ok) loadKeys();
+    await fetchJSON(`/admin/api/keys/${keyId}`, {method: 'DELETE'});
+    loadKeys();
 }
 
-function loadKeys() {
-    fetch('/admin/api/keys', {headers: {'Authorization': 'Basic ' + btoa('admin:' + getAdminPassword())}})
-    .then(r => r.json()).then(keys => {
-        if (keys.length === 0) {
-            document.getElementById('keys-table').innerHTML = '<p class="text-gray-500">No keys found</p>';
-            return;
-        }
-        let html = '<table class="w-full text-sm"><thead><tr class="text-gray-400 border-b border-gray-700"><th class="text-left p-2">Name</th><th class="text-left p-2">Prefix</th><th class="text-left p-2">Active</th><th class="text-left p-2">Permissions</th><th class="text-left p-2">Last Used</th><th class="text-left p-2">Actions</th></tr></thead><tbody>';
-        keys.forEach(k => {
-            html += `<tr class="border-b border-gray-800">
-                <td class="p-2">${k.name}</td>
-                <td class="p-2 font-mono">${k.key_prefix}</td>
-                <td class="p-2">${k.is_active ? '<span class="text-green-400">✅</span>' : '<span class="text-red-400">❌</span>'}</td>
-                <td class="p-2 text-xs"><code>${k.permissions}</code></td>
-                <td class="p-2 text-gray-400 text-xs">${k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'Never'}</td>
-                <td class="p-2">${k.is_active ? '<button onclick="revokeKey(' + k.id + ')" class="bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-xs">Revoke</button>' : ''}</td>
-            </tr>`;
-        });
-        html += '</tbody></table>';
-        document.getElementById('keys-table').innerHTML = html;
+async function loadKeys() {
+    const keys = await fetchJSON('/admin/api/keys');
+    if (keys.length === 0) {
+        document.getElementById('keys-table').innerHTML = '<p class="text-gray-500">No keys found</p>';
+        return;
+    }
+    let html = '<table class="w-full text-sm"><thead><tr class="text-gray-400 border-b border-gray-700"><th class="text-left p-2">Name</th><th class="text-left p-2">Prefix</th><th class="text-left p-2">Active</th><th class="text-left p-2">Permissions</th><th class="text-left p-2">Last Used</th><th class="text-left p-2">Actions</th></tr></thead><tbody>';
+    keys.forEach(k => {
+        html += `<tr class="border-b border-gray-800">
+            <td class="p-2">${k.name}</td>
+            <td class="p-2 font-mono">${k.key_prefix}</td>
+            <td class="p-2">${k.is_active ? '<span class="text-green-400">✅</span>' : '<span class="text-red-400">❌</span>'}</td>
+            <td class="p-2 text-xs"><code>${k.permissions}</code></td>
+            <td class="p-2 text-gray-400 text-xs">${k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'Never'}</td>
+            <td class="p-2">${k.is_active ? '<button onclick="revokeKey(' + k.id + ')" class="bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-xs">Revoke</button>' : ''}</td>
+        </tr>`;
     });
+    html += '</tbody></table>';
+    document.getElementById('keys-table').innerHTML = html;
 }
 
-function getAdminPassword() { return localStorage.getItem('gatekeeper_admin_pass') || 'admin'; }
-loadKeys();
+// pageInit called by auth gate in base.html after login confirmed
+function pageInit() { loadKeys(); }
 </script>
 {% endblock %}

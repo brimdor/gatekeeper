@@ -5,17 +5,110 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Gatekeeper{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         .htmx-indicator { display: none; }
         .htmx-request .htmx-indicator { display: inline-block; }
         .htmx-request.htmx-indicator { display: inline-block; }
     </style>
+    <!-- Core auth/utility JS — must load BEFORE page content scripts -->
+    <script>
+    function getAdminPassword() {
+        return localStorage.getItem('gatekeeper_admin_pass') || '';
+    }
+
+    function authHeaders() {
+        const pass = getAdminPassword();
+        return {'Authorization': 'Basic ' + btoa('admin:' + pass)};
+    }
+
+    async function fetchJSON(url, options = {}) {
+        const headers = {...authHeaders(), ...(options.headers || {})};
+        const resp = await fetch(url, {...options, headers});
+        if (resp.status === 401) {
+            localStorage.removeItem('gatekeeper_admin_pass');
+            showLoginOverlay();
+            throw new Error('Not authenticated');
+        }
+        if (!resp.ok) {
+            throw new Error('API error: ' + resp.status + ' ' + resp.statusText);
+        }
+        return resp.json();
+    }
+
+    async function apiPatch(url, body) {
+        return fetchJSON(url, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+    }
+
+    async function apiPost(url) {
+        return fetchJSON(url, {method: 'POST'});
+    }
+
+    function showLoginOverlay() {
+        document.getElementById('login-overlay').style.display = 'flex';
+        document.getElementById('app-content').style.display = 'none';
+        const pw = document.getElementById('login-password');
+        if (pw) pw.focus();
+    }
+
+    async function doLogin() {
+        const password = document.getElementById('login-password').value;
+        const errorEl = document.getElementById('login-error');
+        errorEl.style.display = 'none';
+
+        try {
+            const resp = await fetch('/admin/api/modules', {
+                headers: {'Authorization': 'Basic ' + btoa('admin:' + password)}
+            });
+            if (resp.ok) {
+                localStorage.setItem('gatekeeper_admin_pass', password);
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('app-content').style.display = 'flex';
+                if (typeof pageInit === 'function') pageInit();
+            } else {
+                errorEl.textContent = 'Invalid password';
+                errorEl.style.display = 'block';
+            }
+        } catch (e) {
+            errorEl.textContent = 'Connection error';
+            errorEl.style.display = 'block';
+        }
+    }
+
+    function doLogout() {
+        localStorage.removeItem('gatekeeper_admin_pass');
+        showLoginOverlay();
+        document.getElementById('login-password').value = '';
+    }
+
+    // Start hidden until auth is confirmed
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('app-content').style.display = 'none';
+    });
+    </script>
     {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-gray-900 text-gray-200 min-h-full">
-    <div class="flex h-screen">
+    <!-- Login overlay -->
+    <div id="login-overlay" class="fixed inset-0 bg-gray-900 z-50 flex items-center justify-center" style="display:none;">
+        <div class="bg-gray-800 rounded-lg p-8 border border-gray-700 w-96">
+            <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <span class="text-2xl">🔐</span> Gatekeeper Login
+            </h2>
+            <div id="login-error" class="text-red-400 text-sm mb-3" style="display:none;"></div>
+            <div class="mb-4">
+                <label class="block text-sm text-gray-400 mb-1">Password</label>
+                <input type="password" id="login-password" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')doLogin()">
+            </div>
+            <button onclick="doLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded font-medium transition-colors">Sign In</button>
+            <p class="text-xs text-gray-500 mt-3">Default username: admin</p>
+        </div>
+    </div>
+
+    <div id="app-content" class="flex h-screen">
         <!-- Sidebar -->
         <aside class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
             <div class="p-4 border-b border-gray-700">
@@ -31,9 +124,7 @@
                 <a href="/admin/modules" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {% if page == 'modules' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
                     <span>📦</span> Modules
                 </a>
-                <a href="/admin/routes" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {% if page == 'routes' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
-                    <span>🔀</span> Routes
-                </a>
+
                 <a href="/admin/keys" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {% if page == 'keys' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
                     <span>🔑</span> API Keys
                 </a>
@@ -44,7 +135,13 @@
                     <span>🔗</span> Auth Status
                 </a>
             </nav>
-            <div class="p-4 border-t border-gray-700">
+            <!-- Sign out button -->
+            <div class="p-2 border-t border-gray-700">
+                <button onclick="doLogout()" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-700 hover:text-red-400 w-full transition-colors">
+                    <span>🚪</span> Sign Out
+                </button>
+            </div>
+            <div class="px-4 pb-3">
                 <p class="text-xs text-gray-500">Gatekeeper v{{ version }}</p>
             </div>
         </aside>
@@ -57,6 +154,28 @@
         </main>
     </div>
 
-    {% block scripts %}{% endblock %}
+    <!-- Auth gate — runs AFTER page content scripts have defined pageInit() -->
+    <script>
+    (async function() {
+        if (!getAdminPassword()) {
+            showLoginOverlay();
+            return;
+        }
+        try {
+            const resp = await fetch('/admin/api/modules', {headers: authHeaders()});
+            if (resp.status === 401) {
+                localStorage.removeItem('gatekeeper_admin_pass');
+                showLoginOverlay();
+            } else {
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('app-content').style.display = 'flex';
+                // Auth confirmed — now initialize the page
+                if (typeof pageInit === 'function') pageInit();
+            }
+        } catch (e) {
+            showLoginOverlay();
+        }
+    })();
+    </script>
 </body>
 </html>

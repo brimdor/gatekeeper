@@ -23,8 +23,8 @@
 </div>
 
 <script>
-fetch('/admin/api/auth/status', {headers: {'Authorization': 'Basic ' + btoa('admin:' + getAdminPassword())}})
-.then(r => r.json()).then(status => {
+async function loadAuthStatus() {
+    const status = await fetchJSON('/admin/api/auth/status');
     const connected = status.connected;
     let html = `
     <div class="flex items-center gap-3 mb-4">
@@ -42,20 +42,19 @@ fetch('/admin/api/auth/status', {headers: {'Authorization': 'Basic ' + btoa('adm
         html += '</div>';
     }
     document.getElementById('auth-card').innerHTML = html;
-});
 
-fetch('/admin/api/modules', {headers: {'Authorization': 'Basic ' + btoa('admin:' + getAdminPassword())}})
-.then(r => r.json()).then(modules => {
-    let html = '';
+    const modules = await fetchJSON('/admin/api/modules');
+    let scopeHtml = '';
     modules.forEach(m => {
-        html += `<div class="mb-3 p-3 bg-gray-900 rounded">
+        scopeHtml += `<div class="mb-3 p-3 bg-gray-900 rounded">
             <p class="text-sm font-semibold text-white">${m.icon} ${m.display_name} ${m.enabled ? '<span class="text-green-400 text-xs">(enabled)</span>' : '<span class="text-gray-500 text-xs">(disabled)</span>'}</p>
             <div class="mt-1">${m.scopes.map(s => '<span class="inline-block text-xs bg-gray-800 rounded px-2 py-0.5 mr-1 text-gray-300">' + s.replace('https://www.googleapis.com/auth/', '') + '</span>').join('')}</div>
         </div>`;
     });
-    document.getElementById('scope-list').innerHTML = html;
-});
+    document.getElementById('scope-list').innerHTML = scopeHtml;
+}
 
-function getAdminPassword() { return localStorage.getItem('gatekeeper_admin_pass') || 'admin'; }
+// pageInit called by auth gate in base.html after login confirmed
+function pageInit() { loadAuthStatus(); }
 </script>
 {% endblock %}

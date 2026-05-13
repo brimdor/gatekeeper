@@ -4,9 +4,15 @@ import json
 import pytest
 import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
 from gatekeeper.models import ApiKey, RoutePolicy
+
+
+def _unwrap(response: JSONResponse) -> dict:
+    """Extract the JSON body from a JSONResponse returned by GoogleProxy."""
+    return json.loads(response.body.decode())
 
 
 @pytest.mark.asyncio
@@ -43,9 +49,11 @@ class TestApiProxy:
             request_path="/api/v1/gmail/messages/send",
             request_method="POST",
         )
-        assert result["error"] is True
-        assert result["status"] == 403
-        assert "disabled" in result["message"].lower() or "deny" in result["message"].lower()
+        assert result.status_code == 403
+        body = _unwrap(result)
+        assert body["error"] is True
+        assert body["status"] == 403
+        assert "disabled" in body["message"].lower() or "deny" in body["message"].lower()
 
     async def test_key_lacks_module_permission_returns_403(self, db_session):
         """Key with 'drive' permission cannot access 'gmail' routes."""
@@ -74,11 +82,13 @@ class TestApiProxy:
             request_path="/api/v1/gmail/messages/list",
             request_method="GET",
         )
-        assert result["error"] is True
-        assert result["status"] == 403
+        assert result.status_code == 403
+        body = _unwrap(result)
+        assert body["error"] is True
+        assert body["status"] == 403
 
     async def test_no_policy_returns_404(self, db_session):
-        """Request for a route with no policy defined returns 404."""
+        """Request for a route with no policy defined returns 403 (default deny)."""
         from gatekeeper.api.proxy import GoogleProxy
 
         raw, hash_val, prefix = ApiKey.generate_key()
@@ -86,7 +96,7 @@ class TestApiProxy:
         db_session.add(key)
         await db_session.commit()
 
-        # Note: gmail.messages.list has a policy but we're asking for gmail.messages.get (no policy)
+        # No policy for gmail.messages.get — default deny
         result = await GoogleProxy(db_session).call_google(
             module_name="gmail",
             route_id="gmail.messages.get",
@@ -95,8 +105,9 @@ class TestApiProxy:
             request_path="/api/v1/gmail/messages/get",
             request_method="GET",
         )
-        # Default deny = no policy
-        assert result["error"] is True
+        # Default deny = 403 (no policy)
+        body = _unwrap(result)
+        assert body["error"] is True
 
     async def test_audit_log_written_on_denied_request(self, db_session):
         """A denied request should still create an audit log entry."""

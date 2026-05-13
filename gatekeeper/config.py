@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # Security
     api_key_prefix: str = "gkp_"
     rate_limit_per_minute: int = 120
+    # CORS: do NOT use wildcards with allow_credentials=True — specify exact origins.
+    # For development, list localhost variants. For production, set GATEKEEPER_CORS_ORIGINS
+    # to the exact origin(s) that need access.
     cors_origins: list[str] = ["http://localhost:8080", "http://127.0.0.1:8080"]
 
     # Modules

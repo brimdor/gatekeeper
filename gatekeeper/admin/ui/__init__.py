@@ -38,12 +38,6 @@ def mount_ui(app: FastAPI) -> None:
         html = template.render(version=version, page="modules")
         return HTMLResponse(content=html)
 
-    @app.get("/admin/routes", response_class=HTMLResponse)
-    async def admin_routes(request: Request):
-        template = jinja_env.get_template("routes.html")
-        html = template.render(version=version, page="routes")
-        return HTMLResponse(content=html)
-
     @app.get("/admin/keys", response_class=HTMLResponse)
     async def admin_keys(request: Request):
         template = jinja_env.get_template("api_keys.html")

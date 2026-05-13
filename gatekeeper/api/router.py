@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, Request
 from gatekeeper.auth import validate_api_key
 from gatekeeper.api.proxy import GoogleProxy
 from gatekeeper.config import settings
-from gatekeeper.db import async_session
 from gatekeeper.models import ApiKey, RoutePolicy
 from gatekeeper.modules import get_loaded_modules, load_enabled_modules
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -73,7 +72,6 @@ def _make_endpoint(
             request: Request,
             key: ApiKey = Depends(validate_api_key),
         ):
-            from gatekeeper.db import get_session
             from gatekeeper.auth import get_db_session
 
             async for session in get_db_session():
@@ -95,7 +93,30 @@ def _make_endpoint(
             request: Request,
             key: ApiKey = Depends(validate_api_key),
         ):
-            from gatekeeper.db import get_db_session
+            from gatekeeper.auth import get_db_session
+
+            async for session in get_db_session():
+                proxy = GoogleProxy(session)
+                try:
+                    params = await request.json()
+                except Exception:
+                    params = dict(request.query_params)
+                return await proxy.call_google(
+                    module_name=module_name,
+                    route_id=route_id,
+                    params=params,
+                    api_key_record=key,
+                    request_path=str(request.url.path),
+                    request_method=request.method,
+                )
+
+    elif method == "PUT":
+        @router.put(path, summary=description)
+        async def endpoint(
+            request: Request,
+            key: ApiKey = Depends(validate_api_key),
+        ):
+            from gatekeeper.auth import get_db_session
 
             async for session in get_db_session():
                 proxy = GoogleProxy(session)
@@ -118,7 +139,7 @@ def _make_endpoint(
             request: Request,
             key: ApiKey = Depends(validate_api_key),
         ):
-            from gatekeeper.db import get_db_session
+            from gatekeeper.auth import get_db_session
 
             async for session in get_db_session():
                 proxy = GoogleProxy(session)
@@ -141,7 +162,7 @@ def _make_endpoint(
             request: Request,
             key: ApiKey = Depends(validate_api_key),
         ):
-            from gatekeeper.db import get_db_session
+            from gatekeeper.auth import get_db_session
 
             async for session in get_db_session():
                 proxy = GoogleProxy(session)

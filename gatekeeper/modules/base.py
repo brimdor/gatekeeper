@@ -43,13 +43,18 @@ class GoogleModule(ABC):
     def get_mcp_tools(self) -> list[dict[str, Any]]:
         """Return MCP tool definitions derived from this module's routes.
 
-        Each tool's name follows the pattern: {module}__{route_id_with_dots_replaced_by_underscores}
+        Each tool's name follows the pattern: {module}__{route_suffix_with_underscores}
+        where route_suffix strips the leading module prefix from route_id.
+        e.g., "drive.files.list" → "drive__files_list"
         """
         tools = []
         for route in self.get_routes():
+            # Strip module prefix from route_id to avoid redundancy
+            # e.g., "drive.files.list" → suffix "files.list" → "drive__files_list"
+            route_suffix = route.route_id.split(".", 1)[1] if "." in route.route_id else route.route_id
             tools.append(
                 {
-                    "name": f"{self.name}__{route.route_id.replace('.', '_')}",
+                    "name": f"{self.name}__{route_suffix.replace('.', '_')}",
                     "description": route.description or f"{route.method} {route.route_id}",
                     "inputSchema": route.input_schema,
                 }

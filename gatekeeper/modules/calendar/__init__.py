@@ -13,12 +13,13 @@ class CalendarModule(GoogleModule):
     icon = "📅"
 
     required_scopes = [
-        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar",
         "https://www.googleapis.com/auth/calendar.events",
     ]
 
     def get_routes(self) -> list[RouteDef]:
         return [
+            # ── Events: read (on by default) ──
             RouteDef(
                 route_id="calendar.events.list",
                 method="GET",
@@ -75,6 +76,7 @@ class CalendarModule(GoogleModule):
                 },
                 default_policy={},
             ),
+            # ── Events: write (off by default) ──
             RouteDef(
                 route_id="calendar.events.create",
                 method="POST",
@@ -108,7 +110,7 @@ class CalendarModule(GoogleModule):
                     "required": ["summary", "start", "end"],
                 },
                 default_policy={},
-                enabled_by_default=False,  # Write operation — off by default
+                enabled_by_default=False,
             ),
             RouteDef(
                 route_id="calendar.events.update",
@@ -135,7 +137,7 @@ class CalendarModule(GoogleModule):
                     "required": ["event_id"],
                 },
                 default_policy={},
-                enabled_by_default=False,  # Write operation — off by default
+                enabled_by_default=False,
             ),
             RouteDef(
                 route_id="calendar.events.delete",
@@ -158,8 +160,32 @@ class CalendarModule(GoogleModule):
                     "required": ["event_id"],
                 },
                 default_policy={},
-                enabled_by_default=False,  # Destructive — off by default
+                enabled_by_default=False,
             ),
+            RouteDef(
+                route_id="calendar.events.quick_add",
+                method="POST",
+                google_path="/calendar/v3/calendars/{calendarId}/events/quickAdd",
+                description="Create event from natural text (e.g., 'Lunch with Alex tomorrow at noon')",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar identifier",
+                            "default": "primary",
+                        },
+                        "text": {
+                            "type": "string",
+                            "description": "Natural language event description",
+                        },
+                    },
+                    "required": ["text"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Calendars ──
             RouteDef(
                 route_id="calendar.calendars.list",
                 method="GET",
@@ -185,6 +211,69 @@ class CalendarModule(GoogleModule):
                 },
                 default_policy={"max_results": 50},
             ),
+            RouteDef(
+                route_id="calendar.calendars.get",
+                method="GET",
+                google_path="/calendar/v3/calendars/{calendarId}",
+                description="Get details of a specific calendar",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar identifier (use 'primary' for default)",
+                            "default": "primary",
+                        },
+                    },
+                    "required": ["calendar_id"],
+                },
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="calendar.calendars.create",
+                method="POST",
+                google_path="/calendar/v3/calendars",
+                description="Create a new calendar",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "summary": {
+                            "type": "string",
+                            "description": "Title of the new calendar",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "Description of the new calendar",
+                        },
+                        "timezone": {
+                            "type": "string",
+                            "description": "Time zone for the calendar (e.g., 'America/Chicago')",
+                        },
+                    },
+                    "required": ["summary"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="calendar.calendars.delete",
+                method="DELETE",
+                google_path="/calendar/v3/calendars/{calendarId}",
+                description="Delete a calendar",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar identifier to delete",
+                        },
+                    },
+                    "required": ["calendar_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Free/Busy ──
             RouteDef(
                 route_id="calendar.freebusy.query",
                 method="POST",

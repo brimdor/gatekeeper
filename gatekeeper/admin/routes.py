@@ -88,7 +88,8 @@ def create_admin_router() -> APIRouter:
             )
             session.add(key)
             await session.commit()
-            return ApiKeyCreated(name=key_data.name, key_prefix=prefix, raw_key=raw)
+            await session.refresh(key)  # Populate the id field
+            return ApiKeyCreated(id=key.id, name=key_data.name, key_prefix=prefix, raw_key=raw)
 
     @router.delete("/keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
     async def revoke_key(key_id: int, admin=Depends(require_admin)):

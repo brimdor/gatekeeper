@@ -6,7 +6,7 @@ import secrets
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from gatekeeper.db import Base
@@ -52,6 +52,9 @@ class RoutePolicy(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     module: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     route: Mapped[str] = mapped_column(String(200), nullable=False)
+    __table_args__ = (
+        UniqueConstraint("module", "route", name="uq_route_policy_module_route"),
+    )
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # JSON policy config — limits, filters, transforms
     policy_config: Mapped[str] = mapped_column(Text, default="{}")
@@ -71,12 +74,12 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    api_key_prefix: Mapped[str] = mapped_column(String(20), nullable=False)
-    module: Mapped[str] = mapped_column(String(50), nullable=False)
+    api_key_prefix: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    module: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     route: Mapped[str] = mapped_column(String(200), nullable=False)
     method: Mapped[str] = mapped_column(String(10), nullable=False)
     path: Mapped[str] = mapped_column(String(500), nullable=False)
-    status_code: Mapped[int] = mapped_column(Integer, nullable=False)
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     # Truncated response summary (avoid bloating DB)
     response_summary: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

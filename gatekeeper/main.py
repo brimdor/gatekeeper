@@ -127,13 +127,20 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS middleware
+    # CORS middleware — validate config (no wildcard origins with credentials)
+    if "*" in settings.cors_origins:
+        import warnings
+        warnings.warn(
+            "GATEKEEPER_CORS_ORIGINS contains '*' which is insecure with credentials. "
+            "Specify exact origins instead.",
+            stacklevel=2,
+        )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["X-Gatekeeper-API-Key", "Authorization", "Content-Type"],
     )
 
     # Health check

@@ -53,8 +53,10 @@ def create_mcp_server() -> "FastMCP":
     admin toggles (enabling/disabling routes) take effect immediately
     without a server restart.
 
-    Tool names follow the pattern:  {module}__{route_id_with_underscores}
-    For example:  gmail__messages_list
+    Tool names follow the pattern:  {module}__{route_suffix_with_underscores}
+    where route_suffix strips the leading module prefix from route_id.
+    For example:  gmail.messages.list → gmail__messages_list
+    drive.files.list_shared → drive__files_list_shared
 
     Each tool accepts all the route's input_schema parameters plus a
     required ``api_key`` string parameter for authentication.
@@ -106,9 +108,13 @@ def create_mcp_server() -> "FastMCP":
                         required = list(schema.get("required", []))
                         required.append("api_key")
 
+                        # Strip module prefix from route_id to avoid redundancy
+                        # e.g., "gmail.messages.list" → suffix "messages.list" → "gmail__messages_list"
+                        route_suffix = route.route_id.split(".", 1)[1] if "." in route.route_id else route.route_id
+                        tool_name = f"{module_name}__{route_suffix.replace('.', '_')}"
                         tools.append(
                             MCPTool(
-                                name=f"{module_name}__{route.route_id.replace('.', '_')}",
+                                name=tool_name,
                                 description=route.description
                                 or f"{route.method} {route.route_id}",
                                 inputSchema={
@@ -151,8 +157,9 @@ def create_mcp_server() -> "FastMCP":
                 )
             ]
 
-        # Parse module and route from tool name
-        # Format: "gmail__messages_list" -> module="gmail", route="gmail.messages.list"
+        # Parse module and route from tool name using module registry
+        # Tool name format: "{module}__{route_suffix_with_underscores}"
+        # e.g., "gmail__messages_list" → module="gmail", look up route starting with "gmail.messages"
         parts = name.split("__", 1)
         if len(parts) != 2:
             return [
@@ -163,8 +170,36 @@ def create_mcp_server() -> "FastMCP":
             ]
 
         module_name = parts[0]
-        route_part = parts[1]
-        route_id = f"{module_name}.{route_part.replace('_', '.')}"
+        route_suffix = parts[1]
+
+        # Look up the route by finding a matching route in the module
+        # route_suffix uses underscores where the original had dots
+        # e.g., "files_list_shared" matches "drive.files.list_shared"
+        mod = load_module(module_name)
+        if mod is None:
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps({"error": True, "message": f"Module {module_name} not found"}),
+                )
+            ]
+
+        # Find the route by converting each route's suffix to underscore form
+        # and comparing with the tool name suffix
+        route_id = None
+        for route in mod.get_routes():
+            route_suffix_part = route.route_id.split(".", 1)[1] if "." in route.route_id else route.route_id
+            if route_suffix_part.replace(".", "_") == route_suffix:
+                route_id = route.route_id
+                break
+
+        if route_id is None:
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps({"error": True, "message": f"Route not found for tool: {name}"}),
+                )
+            ]
 
         async with async_session() as session:
             proxy = GoogleProxy(session)

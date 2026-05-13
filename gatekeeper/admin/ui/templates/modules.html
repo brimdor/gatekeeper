@@ -4,34 +4,93 @@
 {% block content %}
 <div class="mb-8">
     <h2 class="text-2xl font-bold text-white">Modules</h2>
-    <p class="text-gray-400 mt-1">Enable or disable Google Workspace modules</p>
+    <p class="text-gray-400 mt-1">Enable or disable Google API modules and their individual endpoints for fine-grained access control.</p>
 </div>
-<div id="modules-list" hx-get="/admin/api/modules" hx-trigger="load" hx-swap="innerHTML">
-    <p class="text-gray-500">Loading modules...</p>
+<div id="modules-container" class="text-gray-500">
+    <p>Loading modules...</p>
 </div>
 <script>
-fetch('/admin/api/modules').then(r => r.json()).then(modules => {
-    let html = '<div class="grid grid-cols-1 md:grid-cols-3 gap-6">';
+async function toggleModule(moduleName) {
+    await apiPost(`/admin/api/modules/${moduleName}/toggle`);
+    loadModules();
+}
+
+async function toggleRoute(routeId, enable) {
+    await apiPatch(`/admin/api/routes/${routeId}`, {enabled: enable});
+    loadModules();
+}
+
+async function loadModules() {
+    const [modules, routes] = await Promise.all([
+        fetchJSON('/admin/api/modules'),
+        fetchJSON('/admin/api/routes')
+    ]);
+
+    const routesByModule = {};
+    routes.forEach(r => {
+        if (!routesByModule[r.module]) routesByModule[r.module] = [];
+        routesByModule[r.module].push(r);
+    });
+
+    let html = '<div class="space-y-6">';
+
     modules.forEach(m => {
+        const moduleRoutes = routesByModule[m.name] || [];
+        const enabledCount = moduleRoutes.filter(r => r.enabled).length;
+
         html += `
-        <div class="bg-gray-800 rounded-lg p-6 border ${m.enabled ? 'border-green-700' : 'border-gray-700'}">
-            <div class="flex items-center justify-between mb-3">
-                <span class="text-3xl">${m.icon}</span>
-                <button hx-post="/admin/api/modules/${m.name}/toggle" hx-swap="none" hx-on::after-request="location.reload()" class="px-3 py-1 text-sm rounded ${m.enabled ? 'bg-red-700 hover:bg-red-600' : 'bg-green-700 hover:bg-green-600'} text-white">
-                    ${m.enabled ? 'Disable' : 'Enable'}
-                </button>
+        <div class="bg-gray-800 rounded-lg border ${m.enabled ? 'border-green-700/50' : 'border-gray-700'} overflow-hidden">
+            <!-- Module header -->
+            <div class="flex items-center justify-between p-5 border-b border-gray-700/50">
+                <div class="flex items-center gap-3">
+                    <span class="text-3xl">${m.icon}</span>
+                    <div>
+                        <h3 class="text-lg font-semibold text-white">${m.display_name}</h3>
+                        <p class="text-sm text-gray-400">${m.description}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-xs text-gray-500">${enabledCount}/${moduleRoutes.length} routes active</span>
+                    <button onclick="toggleModule('${m.name}')"
+                        class="px-4 py-2 text-sm rounded font-medium ${m.enabled ? 'bg-red-700 hover:bg-red-600' : 'bg-green-700 hover:bg-green-600'} text-white transition-colors">
+                        ${m.enabled ? 'Disable Module' : 'Enable Module'}
+                    </button>
+                </div>
             </div>
-            <h3 class="text-lg font-semibold text-white">${m.display_name}</h3>
-            <p class="text-sm text-gray-400 mt-1">${m.description}</p>
-            <p class="text-xs text-gray-500 mt-3">${m.route_count} routes active</p>
-            <div class="mt-3">
-                <p class="text-xs text-gray-400">Required scopes:</p>
-                ${m.scopes.map(s => '<span class="inline-block text-xs bg-gray-700 rounded px-2 py-0.5 mt-1 mr-1 text-gray-300">' + s.replace('https://www.googleapis.com/auth/', '') + '</span>').join('')}
+
+            <!-- Scopes -->
+            <div class="px-5 py-3 border-b border-gray-700/30 bg-gray-800/50">
+                <p class="text-xs text-gray-500 mb-1">OAuth scopes:</p>
+                <div class="flex flex-wrap gap-1.5">
+                    ${m.scopes.map(s => `<span class="inline-block text-xs bg-gray-700/80 rounded px-2 py-0.5 text-gray-300 font-mono">${s.replace('https://www.googleapis.com/auth/', '')}</span>`).join('')}
+                </div>
+            </div>
+
+            <!-- Routes -->
+            <div class="divide-y divide-gray-700/30">
+                ${moduleRoutes.map(r => `
+                <div class="flex items-center justify-between px-5 py-3 hover:bg-gray-700/30 transition-colors">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <code class="text-sm ${r.enabled ? 'text-blue-300' : 'text-gray-500'}">${r.route}</code>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-0.5">${r.description || ''}</p>
+                    </div>
+                    <button onclick="toggleRoute(${r.id}, ${!r.enabled})"
+                        class="ml-4 px-3 py-1 text-xs rounded font-medium ${r.enabled ? 'bg-green-800/80 text-green-300 hover:bg-green-700' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'} transition-colors">
+                        ${r.enabled ? '✅ On' : '❌ Off'}
+                    </button>
+                </div>
+                `).join('')}
             </div>
         </div>`;
     });
+
     html += '</div>';
-    document.getElementById('modules-list').innerHTML = html;
-});
+    document.getElementById('modules-container').innerHTML = html;
+}
+
+// pageInit called by auth gate in base.html after login confirmed
+function pageInit() { loadModules(); }
 </script>
 {% endblock %}

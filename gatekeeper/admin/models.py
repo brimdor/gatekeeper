@@ -24,6 +24,7 @@ class ApiKeyResponse(BaseModel):
 
 
 class ApiKeyCreated(BaseModel):
+    id: int  # Database ID, useful for revoke/delete operations
     name: str
     key_prefix: str
     raw_key: str  # Only returned on creation
