@@ -3,7 +3,7 @@
 # Uses uv for fast Python dependency installation
 
 # ==================== Build Stage ====================
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -18,7 +18,7 @@ COPY gatekeeper/ gatekeeper/
 RUN uv pip install --system --no-cache .
 
 # ==================== Runtime Stage ====================
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 LABEL org.opencontainers.image.title="Gatekeeper"
 LABEL org.opencontainers.image.description="Policy gateway for Google Workspace APIs with MCP server integration"
