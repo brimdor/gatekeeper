@@ -31,7 +31,7 @@ dependencies = [
     "bcrypt>=4.1",
     "cryptography>=42.0",
     "httpx>=0.27",
-    "python-multipart>=0.0.9",
+    "python-multipart>=0.0.28",
     "mcp>=1.0",
 ]
 
