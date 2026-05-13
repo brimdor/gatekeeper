@@ -54,6 +54,12 @@ class GoogleCredentialManager:
             decrypted_data = decrypt_value(encrypted_data)
             data = json.loads(decrypted_data)
 
+            # Restore expiry if persisted
+            expiry = None
+            if data.get("expiry"):
+                from datetime import datetime
+                expiry = datetime.fromisoformat(data["expiry"])
+
             creds = Credentials(
                 token=data.get("token"),
                 refresh_token=data.get("refresh_token"),
@@ -61,6 +67,7 @@ class GoogleCredentialManager:
                 client_id=settings.google_client_id,
                 client_secret=settings.google_client_secret,
                 scopes=data.get("scopes", []),
+                expiry=expiry,
             )
             self._credentials = creds
             logger.info("Google credentials loaded successfully")
@@ -70,14 +77,24 @@ class GoogleCredentialManager:
             return None
 
     def refresh_if_needed(self) -> Optional[Credentials]:
-        """Refresh credentials if expired. Returns valid credentials or None."""
+        """Refresh credentials if expired or expiry is unknown.
+
+        Credentials loaded from disk without an expiry field have
+        ``expiry=None``, which makes ``expired`` return ``False`` — even
+        though the access token may be stale.  We treat a missing expiry
+        the same as expired and always refresh in that case.
+        """
         with self._lock:
             if not self._credentials:
                 self._credentials = self.load_credentials()
             if not self._credentials:
                 return None
 
-            if self._credentials.expired and self._credentials.refresh_token:
+            needs_refresh = (
+                (self._credentials.expired or self._credentials.expiry is None)
+                and self._credentials.refresh_token
+            )
+            if needs_refresh:
                 try:
                     self._credentials.refresh(Request())
                     self._save_credentials()
@@ -104,6 +121,7 @@ class GoogleCredentialManager:
             "client_id": self._credentials.client_id,
             "client_secret": self._credentials.client_secret,
             "scopes": list(self._credentials.scopes) if self._credentials.scopes else [],
+            "expiry": self._credentials.expiry.isoformat() if self._credentials.expiry else None,
         }
         encrypted_data = encrypt_value(json.dumps(data))
         self.token_path.parent.mkdir(parents=True, exist_ok=True)

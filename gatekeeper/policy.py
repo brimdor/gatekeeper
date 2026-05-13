@@ -68,20 +68,20 @@ class PolicyEngine:
             # No explicit policy = default deny
             return PolicyDecision(
                 allowed=False,
-                reason=f"No policy defined for {module}.{route}",
+                reason=f"No policy defined for {route}",
             )
 
         if not policy.enabled:
             return PolicyDecision(
                 allowed=False,
-                reason=f"Route {module}.{route} is disabled",
+                reason=f"Route {route} is disabled",
             )
 
         # Parse policy config
         try:
             config = json.loads(policy.policy_config) if policy.policy_config else {}
         except json.JSONDecodeError:
-            logger.warning(f"Invalid JSON in policy config for {module}.{route}")
+            logger.warning(f"Invalid JSON in policy config for {route}")
             config = {}
 
         return PolicyDecision(allowed=True, policy_config=config)
