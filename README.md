@@ -110,7 +110,7 @@ Opens a browser on the local machine and captures the redirect automatically. Us
 6. Copy the Client ID and Client Secret to your `.env`:
    ```bash
    GATEKEEPER_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-   GATEKEEPER_GOOGLE_CLIENT_SECRET=GOCSPX-your-secret
+GATEKEEPER_GOOGLE_CLIENT_SECRET=your-client-secret
    ```
 7. Go to **OAuth consent screen** → add your email as a test user
 8. Run `gatekeeper auth`
