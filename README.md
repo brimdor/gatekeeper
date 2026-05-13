@@ -1,5 +1,9 @@
 # Gatekeeper 🔐
 
+[![CI](https://github.com/brimdor/gatekeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/brimdor/gatekeeper/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+
 **Policy gateway for Google Workspace APIs** — fine-grained control over what AI agents can do with your Google Drive, Gmail, and Calendar. Exposes enabled routes as MCP tools so agents discover and call only what you allow.
 
 ## Why Gatekeeper?
