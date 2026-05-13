@@ -24,6 +24,7 @@ LABEL org.opencontainers.image.title="Gatekeeper"
 LABEL org.opencontainers.image.description="Policy gateway for Google Workspace APIs with MCP server integration"
 LABEL org.opencontainers.image.source="https://github.com/brimdor/gatekeeper"
 LABEL org.opencontainers.image.vendor="Brimdor"
+LABEL org.opencontainers.image.license="MIT"
 
 # Install runtime system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -42,14 +43,11 @@ WORKDIR /app
 # Create persistent data directory
 RUN mkdir -p /data
 
-# Environment defaults (override via env vars or .env file)
+# Environment defaults (secrets should be set via .env or env vars, not here)
 ENV GATEKEEPER_HOST=0.0.0.0
 ENV GATEKEEPER_PORT=8080
 ENV GATEKEEPER_DATABASE_URL=sqlite+aiosqlite:////data/gatekeeper.db
 ENV GATEKEEPER_GOOGLE_TOKEN_FILE=/data/google_token.json
-ENV GATEKEEPER_SECRET_KEY=
-ENV GATEKEEPER_ENCRYPTION_KEY=
-ENV GATEKEEPER_ADMIN_PASSWORD=
 ENV GATEKEEPER_DRIVE_ENABLED=false
 ENV GATEKEEPER_GMAIL_ENABLED=false
 ENV GATEKEEPER_CALENDAR_ENABLED=false

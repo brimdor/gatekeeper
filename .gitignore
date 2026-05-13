@@ -44,3 +44,9 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Distribution
+dist/
+
+# Local development
+*.log

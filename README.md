@@ -114,20 +114,22 @@ Opens a browser on the local machine and captures the redirect automatically. Us
    ```
 7. Go to **OAuth consent screen** → add your email as a test user
 8. Run `gatekeeper auth`
+   ```bash
+   gatekeeper auth
+   ```
+   
+   On first run, Gatekeeper generates:
+   - An admin password (saved in `gatekeeper_secrets.json`)
+   - An encryption key for OAuth token storage
+   - Default API key (`default-admin`)
+   
+   ⚠️ **Save the admin password** — it's printed once during setup.
 
-# Authorize with Google (opens browser)
-gatekeeper auth
+### 3. Start the server
 
-# Start the server
+```bash
 gatekeeper serve
 ```
-
-On first `init`, Gatekeeper generates:
-- An admin password (saved in `gatekeeper_secrets.json`)
-- An encryption key for OAuth token storage
-- Default API key (`default-admin`)
-
-⚠️ **Save the admin password** — it's printed once during `init`.
 
 ### 4. Create an API key for your agent
 

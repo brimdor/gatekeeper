@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import bcrypt
+import hmac
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy import select
@@ -72,8 +73,8 @@ async def require_admin(
     Raises HTTP 401 on invalid credentials.
     """
     if (
-        credentials.username == settings.admin_username
-        and credentials.password == settings.admin_password
+        hmac.compare_digest(credentials.username, settings.admin_username)
+        and hmac.compare_digest(credentials.password, settings.admin_password)
     ):
         return credentials
     raise HTTPException(

@@ -1,0 +1,37 @@
+name: Feature Request
+description: Suggest an idea for Gatekeeper
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Is your feature request related to a problem?
+      placeholder: "I'm frustrated when..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any alternative approaches you've thought about?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area?
+      options:
+        - API Proxy
+        - Admin UI/API
+        - Policy Engine
+        - MCP Server
+        - Authentication
+        - Configuration
+        - Documentation
+        - Other
