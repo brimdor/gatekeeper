@@ -8,7 +8,7 @@ Provides:
 """
 
 import base64
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
@@ -20,8 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from gatekeeper.db import Base
 from gatekeeper.models import ApiKey, RoutePolicy
 
-
 # ── Settings fixture ──────────────────────────────────────────────────────
+
 
 @pytest.fixture(scope="session")
 def test_settings():
@@ -44,6 +44,7 @@ def test_settings():
 
 
 # ── Database fixtures ─────────────────────────────────────────────────────
+
 
 @pytest_asyncio.fixture
 async def db_engine():
@@ -71,6 +72,7 @@ async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
 
 # ── App fixture (patched settings + seeded DB) ───────────────────────────
 
+
 @pytest_asyncio.fixture
 async def app(db_engine, test_settings):
     """Create a FastAPI test app with settings overridden and DB seeded.
@@ -79,10 +81,10 @@ async def app(db_engine, test_settings):
     then patches the DB session factories so the app uses the in-memory test DB.
     Seeds default route policies for all three modules.
     """
-    import gatekeeper.config
-    import gatekeeper.auth
-    import gatekeeper.db
     import gatekeeper.admin.routes
+    import gatekeeper.auth
+    import gatekeeper.config
+    import gatekeeper.db
     from gatekeeper.modules import load_module
 
     # Patch settings onto the config module BEFORE create_app
@@ -90,7 +92,7 @@ async def app(db_engine, test_settings):
     gatekeeper.config.settings = test_settings
 
     # Patch settings on modules that import settings directly
-    original_auth_settings = getattr(gatekeeper.auth, 'settings', None)
+    original_auth_settings = getattr(gatekeeper.auth, "settings", None)
     gatekeeper.auth.settings = test_settings
 
     # Build a test DB session factory
@@ -121,7 +123,8 @@ async def app(db_engine, test_settings):
     original_gc_settings = None
     try:
         import gatekeeper.google_client
-        original_gc_settings = getattr(gatekeeper.google_client, 'settings', None)
+
+        original_gc_settings = getattr(gatekeeper.google_client, "settings", None)
         gatekeeper.google_client.settings = test_settings
     except Exception:
         pass
@@ -130,7 +133,8 @@ async def app(db_engine, test_settings):
     original_enc_settings = None
     try:
         import gatekeeper.encryption
-        original_enc_settings = getattr(gatekeeper.encryption, 'settings', None)
+
+        original_enc_settings = getattr(gatekeeper.encryption, "settings", None)
         gatekeeper.encryption.settings = test_settings
     except Exception:
         pass
@@ -154,7 +158,9 @@ async def app(db_engine, test_settings):
                         module=module_name,
                         route=route.route_id,
                         enabled=defaults.get("enabled", route.enabled_by_default),
-                        policy_config=__import__("json").dumps(defaults.get("config", route.default_policy)),
+                        policy_config=__import__("json").dumps(
+                            defaults.get("config", route.default_policy)
+                        ),
                         description=route.description,
                     )
                     seed_session.add(policy)
@@ -162,10 +168,12 @@ async def app(db_engine, test_settings):
 
     # Clear module cache before creating app
     from gatekeeper.modules import _loaded_modules
+
     _loaded_modules.clear()
 
     try:
         from gatekeeper.main import create_app
+
         application = create_app()
         yield application
     finally:
@@ -188,6 +196,7 @@ async def app(db_engine, test_settings):
 
 # ── HTTP client fixtures ──────────────────────────────────────────────────
 
+
 @pytest_asyncio.fixture
 async def client(app):
     """Async HTTP client using the test app's ASGI transport."""
@@ -197,6 +206,7 @@ async def client(app):
 
 
 # ── API key fixtures ──────────────────────────────────────────────────────
+
 
 @pytest_asyncio.fixture
 async def api_key(db_session):
@@ -250,6 +260,7 @@ async def inactive_key(db_session):
 
 
 # ── Auth header fixtures ──────────────────────────────────────────────────
+
 
 @pytest.fixture
 def admin_headers(test_settings):

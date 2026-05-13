@@ -5,8 +5,6 @@ auth status, dashboard, and admin UI pages.
 """
 
 import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
 
 
 @pytest.mark.asyncio

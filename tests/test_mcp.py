@@ -1,9 +1,5 @@
 """Tests for the MCP server — tool listing, naming, and authentication."""
 
-import json
-import pytest
-import pytest_asyncio
-
 from gatekeeper.modules import load_module
 
 
@@ -52,7 +48,9 @@ class TestMCPToolNaming:
             for route in mod.get_routes():
                 # Tool name format: {module}__{route_suffix_with_underscores}
                 # route_id = "drive.files.list" → suffix = "files.list" → tool = "drive__files_list"
-                route_suffix = route.route_id.split(".", 1)[1] if "." in route.route_id else route.route_id
+                route_suffix = (
+                    route.route_id.split(".", 1)[1] if "." in route.route_id else route.route_id
+                )
                 expected_name = f"{module_name}__{route_suffix.replace('.', '_')}"
                 tool_names = {t["name"] for t in tools}
                 assert expected_name in tool_names, f"Missing tool {expected_name}"
@@ -63,8 +61,9 @@ class TestMCPToolNaming:
             mod = load_module(module_name)
             routes = mod.get_routes()
             tools = mod.get_mcp_tools()
-            assert len(tools) == len(routes), \
+            assert len(tools) == len(routes), (
                 f"{module_name}: {len(tools)} tools vs {len(routes)} routes"
+            )
 
 
 class TestMCPToolNameParsing:
@@ -107,7 +106,9 @@ class TestMCPToolNameParsing:
         for module_name in ["drive", "gmail", "calendar"]:
             mod = load_module(module_name)
             for route in mod.get_routes():
-                route_suffix = route.route_id.split(".", 1)[1] if "." in route.route_id else route.route_id
+                route_suffix = (
+                    route.route_id.split(".", 1)[1] if "." in route.route_id else route.route_id
+                )
                 tool_suffix = route_suffix.replace(".", "_")
                 # Verify the suffix can be found in the module's routes
                 found = False
@@ -125,6 +126,7 @@ class TestMCPServerCreation:
     def test_create_mcp_server_returns_instance(self):
         """create_mcp_server() should return a FastMCP instance."""
         from gatekeeper.mcp_server import create_mcp_server
+
         mcp = create_mcp_server()
         assert mcp is not None
         assert mcp.name == "gatekeeper"
@@ -132,6 +134,7 @@ class TestMCPServerCreation:
     def test_mcp_server_has_instructions(self):
         """MCP server should have instructions set."""
         from gatekeeper.mcp_server import create_mcp_server
+
         mcp = create_mcp_server()
         assert mcp.instructions is not None
         assert len(mcp.instructions) > 0
@@ -158,8 +161,7 @@ class TestMCPToolSchema:
             mod = load_module(module_name)
             tools = mod.get_mcp_tools()
             for tool in tools:
-                assert len(tool["description"]) > 0, \
-                    f"Tool {tool['name']} has empty description"
+                assert len(tool["description"]) > 0, f"Tool {tool['name']} has empty description"
 
     def test_write_tools_have_input_schemas(self):
         """Write tools should have detailed input schemas."""

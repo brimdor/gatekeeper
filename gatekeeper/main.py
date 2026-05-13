@@ -8,19 +8,14 @@ import json
 import logging
 import sys
 from contextlib import asynccontextmanager
-from pathlib import Path
-from typing import Optional
 
-import bcrypt
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 from gatekeeper.config import settings
-from gatekeeper.db import async_session, init_db, engine
+from gatekeeper.db import async_session, init_db
 from gatekeeper.models import ApiKey, RoutePolicy
 
 logger = logging.getLogger(__name__)
@@ -40,7 +35,8 @@ async def lifespan(app: FastAPI):
     # Generate default API key if none exist
     await ensure_default_key()
 
-    logger.info(f"Gatekeeper v{__import__('gatekeeper').__version__} ready on {settings.host}:{settings.port}")
+    gv = __import__("gatekeeper").__version__
+    logger.info(f"Gatekeeper v{gv} ready on {settings.host}:{settings.port}")
 
     yield
 
@@ -50,7 +46,6 @@ async def lifespan(app: FastAPI):
 
 async def seed_default_policies():
     """Seed default RoutePolicy rows for all enabled module routes."""
-    from gatekeeper.modules import load_enabled_modules, get_loaded_modules
 
     enabled = []
     if settings.drive_enabled:
@@ -82,11 +77,12 @@ async def seed_default_policies():
                 if result.scalar_one_or_none() is None:
                     # Seed with default
                     defaults = mod.get_default_policies().get(route.route_id, {})
+                    policy_config = defaults.get("config", route.default_policy)
                     policy = RoutePolicy(
                         module=name,
                         route=route.route_id,
                         enabled=defaults.get("enabled", route.enabled_by_default),
-                        policy_config=json.dumps(defaults.get("config", route.default_policy)),
+                        policy_config=json.dumps(policy_config),
                         description=route.description,
                     )
                     session.add(policy)
@@ -110,10 +106,10 @@ async def ensure_default_key():
             )
             session.add(key)
             await session.commit()
-            print(f"\n{'='*60}")
-            print(f"🔑 Default API Key generated (save this — it won't be shown again):")
+            print(f"\n{'=' * 60}")
+            print("🔑 Default API Key generated (save this — it won't be shown again):")
             print(f"   {raw}")
-            print(f"{'='*60}\n")
+            print(f"{'=' * 60}\n")
 
 
 def create_app() -> FastAPI:
@@ -130,6 +126,7 @@ def create_app() -> FastAPI:
     # CORS middleware — validate config (no wildcard origins with credentials)
     if "*" in settings.cors_origins:
         import warnings
+
         warnings.warn(
             "GATEKEEPER_CORS_ORIGINS contains '*' which is insecure with credentials. "
             "Specify exact origins instead.",
@@ -164,6 +161,7 @@ def create_app() -> FastAPI:
     if settings.mcp_enabled:
         try:
             from gatekeeper.mcp_server import mount_mcp_server
+
             mount_mcp_server(app)
         except ImportError:
             logger.warning("MCP package not installed. Install with: pip install mcp")
@@ -195,7 +193,10 @@ def cli():
         "--flow",
         choices=["device", "desktop"],
         default="device",
-        help="Auth flow: 'device' (link + code, works anywhere) or 'desktop' (opens browser locally). Default: device",
+        help=(
+            "Auth flow: 'device' (link + code, works anywhere)"
+            " or 'desktop' (opens browser locally). Default: device"
+        ),
     )
 
     # key
@@ -204,9 +205,13 @@ def cli():
 
     key_create = key_subparsers.add_parser("create", help="Create a new API key")
     key_create.add_argument("--name", required=True, help="Name for the key")
-    key_create.add_argument("--permissions", default="*", help="Comma-separated module permissions (default: *)")
+    key_create.add_argument(
+        "--permissions",
+        default="*",
+        help="Comma-separated module permissions (default: *)",
+    )
 
-    key_list = key_subparsers.add_parser("list", help="List API keys")
+    _ = key_subparsers.add_parser("list", help="List API keys")
 
     key_revoke = key_subparsers.add_parser("revoke", help="Revoke an API key")
     key_revoke.add_argument("--prefix", required=True, help="Key prefix to revoke")
@@ -267,8 +272,12 @@ async def _cli_auth(flow: str = "device"):
     else:
         print("🔐 Starting Google Device Authorization flow (link + code)...")
         print("   You'll open a URL and enter a code on any device.")
-    print(f"   Scopes will be requested based on enabled modules.")
-    print(f"   Drive: {settings.drive_enabled}, Gmail: {settings.gmail_enabled}, Calendar: {settings.calendar_enabled}")
+    print("   Scopes will be requested based on enabled modules.")
+    print(
+        f"   Drive: {settings.drive_enabled},"
+        f" Gmail: {settings.gmail_enabled},"
+        f" Calendar: {settings.calendar_enabled}"
+    )
 
     creds = credential_manager.start_auth_flow(flow=flow)
     if creds:
@@ -292,13 +301,13 @@ async def _cli_key_create(name: str, permissions: str):
         session.add(key)
         await session.commit()
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"🔑 API Key created: {name}")
         print(f"   Key:     {raw}")
         print(f"   Prefix:  {prefix}")
         print(f"   Permissions: {permissions}")
-        print(f"{'='*60}")
-        print(f"⚠️  Save the key now — it won't be shown again!\n")
+        print(f"{'=' * 60}")
+        print("⚠️  Save the key now — it won't be shown again!\n")
 
 
 async def _cli_key_list():
@@ -315,16 +324,17 @@ async def _cli_key_list():
         print("-" * 85)
         for key in keys:
             last_used = str(key.last_used_at) if key.last_used_at else "Never"
-            print(f"{key.key_prefix:<15} {key.name:<20} {'✅' if key.is_active else '❌':<8} {key.permissions:<20} {last_used}")
+            active = "✅" if key.is_active else "❌"
+            print(
+                f"{key.key_prefix:<15} {key.name:<20} {active:<8} {key.permissions:<20} {last_used}"
+            )
         print()
 
 
 async def _cli_key_revoke(prefix: str):
     """Revoke an API key by prefix."""
     async with async_session() as session:
-        result = await session.execute(
-            select(ApiKey).where(ApiKey.key_prefix == prefix)
-        )
+        result = await session.execute(select(ApiKey).where(ApiKey.key_prefix == prefix))
         key = result.scalar_one_or_none()
 
         if key:
@@ -337,19 +347,20 @@ async def _cli_key_revoke(prefix: str):
 
 def _cli_status():
     """Show configuration status."""
-    print(f"\n{'='*50}")
-    print(f"  Gatekeeper Status")
-    print(f"{'='*50}")
+    print(f"\n{'=' * 50}")
+    print("  Gatekeeper Status")
+    print(f"{'=' * 50}")
     print(f"  Version:      {__import__('gatekeeper').__version__}")
     print(f"  Host:         {settings.host}")
     print(f"  Port:         {settings.port}")
     print(f"  Debug:        {settings.debug}")
     print(f"  Database:     {settings.database_url}")
     print(f"  MCP Enabled:  {settings.mcp_enabled}")
-    print(f"  Modules:")
+    print("  Modules:")
     print(f"    Drive:      {'✅' if settings.drive_enabled else '❌'}")
     print(f"    Gmail:      {'✅' if settings.gmail_enabled else '❌'}")
     print(f"    Calendar:   {'✅' if settings.calendar_enabled else '❌'}")
-    print(f"  Google OAuth: {'✅ Configured' if settings.google_client_id else '❌ Not configured'}")
+    oauth_status = "✅ Configured" if settings.google_client_id else "❌ Not configured"
+    print(f"  Google OAuth: {oauth_status}")
     print(f"  Admin User:   {settings.admin_username}")
-    print(f"{'='*50}\n")
+    print(f"{'=' * 50}\n")

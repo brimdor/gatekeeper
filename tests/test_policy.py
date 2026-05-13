@@ -5,17 +5,16 @@ request transforms, and response filters.
 """
 
 import json
+
 import pytest
-import pytest_asyncio
-from sqlalchemy import select
 
 from gatekeeper.models import RoutePolicy
 from gatekeeper.policy import PolicyDecision, PolicyEngine
 
-
 # ---------------------------------------------------------------------------
 # PolicyDecision dataclass
 # ---------------------------------------------------------------------------
+
 
 class TestPolicyDecision:
     """Tests for PolicyDecision dataclass — allowed/denied states, defaults."""
@@ -73,6 +72,7 @@ class TestPolicyDecision:
 # Request transforms (sync, no DB needed)
 # ---------------------------------------------------------------------------
 
+
 class TestRequestTransforms:
     """Tests for PolicyEngine.apply_request_transforms."""
 
@@ -81,39 +81,29 @@ class TestRequestTransforms:
 
     # ---- max_results capping ----
 
-    def test_cap_maxResults(self):
+    def test_cap_max_results(self):
         """maxResults exceeding policy limit should be capped."""
-        result = self.engine.apply_request_transforms(
-            {"maxResults": 200}, {"max_results": 50}
-        )
+        result = self.engine.apply_request_transforms({"maxResults": 200}, {"max_results": 50})
         assert result["maxResults"] == 50
 
-    def test_maxResults_below_limit_unchanged(self):
+    def test_maxresults_below_limit_unchanged(self):
         """maxResults below limit should not change."""
-        result = self.engine.apply_request_transforms(
-            {"maxResults": 30}, {"max_results": 50}
-        )
+        result = self.engine.apply_request_transforms({"maxResults": 30}, {"max_results": 50})
         assert result["maxResults"] == 30
 
-    def test_cap_pageSize(self):
+    def test_cap_page_size(self):
         """pageSize should be capped by max_results policy."""
-        result = self.engine.apply_request_transforms(
-            {"pageSize": 100}, {"max_results": 25}
-        )
+        result = self.engine.apply_request_transforms({"pageSize": 100}, {"max_results": 25})
         assert result["pageSize"] == 25
 
     def test_cap_max_results_snake(self):
         """max_results (snake_case form) should also be capped."""
-        result = self.engine.apply_request_transforms(
-            {"max_results": 100}, {"max_results": 10}
-        )
+        result = self.engine.apply_request_transforms({"max_results": 100}, {"max_results": 10})
         assert result["max_results"] == 10
 
     def test_cap_page_size_snake(self):
         """page_size (snake_case form) should also be capped."""
-        result = self.engine.apply_request_transforms(
-            {"page_size": 200}, {"max_results": 50}
-        )
+        result = self.engine.apply_request_transforms({"page_size": 200}, {"max_results": 50})
         assert result["page_size"] == 50
 
     def test_multiple_result_keys_capped_together(self):
@@ -129,9 +119,7 @@ class TestRequestTransforms:
 
     def test_max_results_does_not_affect_non_int_values(self):
         """String values in result-limit keys should not be modified."""
-        result = self.engine.apply_request_transforms(
-            {"maxResults": "all"}, {"max_results": 50}
-        )
+        result = self.engine.apply_request_transforms({"maxResults": "all"}, {"max_results": 50})
         assert result["maxResults"] == "all"
 
     # ---- allowed_labels ----
@@ -184,7 +172,10 @@ class TestRequestTransforms:
         """Both allowed_labels and exclude_labels should apply together."""
         result = self.engine.apply_request_transforms(
             {"labelIds": ["INBOX", "IMPORTANT", "SPAM", "TRASH", "UNREAD"]},
-            {"allowed_labels": ["INBOX", "IMPORTANT", "UNREAD", "SPAM"], "exclude_labels": ["SPAM"]},
+            {
+                "allowed_labels": ["INBOX", "IMPORTANT", "UNREAD", "SPAM"],
+                "exclude_labels": ["SPAM"],
+            },
         )
         # allowed_labels filters to [INBOX, IMPORTANT, SPAM, UNREAD]
         # exclude_labels then removes SPAM
@@ -194,9 +185,7 @@ class TestRequestTransforms:
 
     def test_query_filter_added_fresh(self):
         """query_filter should be set as q when no existing q."""
-        result = self.engine.apply_request_transforms(
-            {}, {"query_filter": "sharedWithMe=true"}
-        )
+        result = self.engine.apply_request_transforms({}, {"query_filter": "sharedWithMe=true"})
         assert result["q"] == "sharedWithMe=true"
 
     def test_query_filter_combined_with_existing(self):
@@ -230,11 +219,9 @@ class TestRequestTransforms:
         )
         assert result["maxResults"] == 200
 
-    def test_no_labelIds_key_in_params(self):
+    def test_no_labelids_key_in_params(self):
         """allowed_labels policy with no labelIds in params should not add labelIds."""
-        result = self.engine.apply_request_transforms(
-            {"q": "test"}, {"allowed_labels": ["INBOX"]}
-        )
+        result = self.engine.apply_request_transforms({"q": "test"}, {"allowed_labels": ["INBOX"]})
         assert "labelIds" not in result
 
     # ---- multiple transforms together ----
@@ -260,6 +247,7 @@ class TestRequestTransforms:
 # ---------------------------------------------------------------------------
 # Response filters (sync, no DB needed)
 # ---------------------------------------------------------------------------
+
 
 class TestResponseFilter:
     """Tests for PolicyEngine.apply_response_filter."""
@@ -351,6 +339,7 @@ class TestResponseFilter:
 # ---------------------------------------------------------------------------
 # PolicyEngine.check_route (async, needs DB session)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 class TestPolicyCheckRoute:

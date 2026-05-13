@@ -4,12 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from gatekeeper.admin.models import (
     ApiKeyCreate,
@@ -24,7 +21,7 @@ from gatekeeper.admin.models import (
 )
 from gatekeeper.auth import require_admin
 from gatekeeper.config import settings
-from gatekeeper.db import async_session, get_session
+from gatekeeper.db import async_session
 from gatekeeper.google_client import credential_manager
 from gatekeeper.models import ApiKey, AuditLog, RoutePolicy
 
@@ -151,7 +148,7 @@ def create_admin_router() -> APIRouter:
         return {"module": module_name, "enabled": new_status}
 
     @router.get("/routes", response_model=list[RoutePolicyResponse])
-    async def list_routes(module: Optional[str] = None, admin=Depends(require_admin)):
+    async def list_routes(module: str | None = None, admin=Depends(require_admin)):
         """List all route policies, optionally filtered by module."""
         async with async_session() as session:
             query = select(RoutePolicy)
@@ -201,8 +198,8 @@ def create_admin_router() -> APIRouter:
 
     @router.get("/audit", response_model=list[AuditLogResponse])
     async def audit_log(
-        module: Optional[str] = None,
-        key_prefix: Optional[str] = None,
+        module: str | None = None,
+        key_prefix: str | None = None,
         limit: int = 50,
         offset: int = 0,
         admin=Depends(require_admin),

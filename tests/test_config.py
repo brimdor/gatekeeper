@@ -1,12 +1,9 @@
 """Tests for Gatekeeper configuration."""
 
-import json
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 from cryptography.fernet import Fernet
 
 
@@ -33,7 +30,7 @@ def test_settings_load_from_defaults():
 
 def test_settings_ensure_secrets_generates_missing():
     """ensure_secrets() should generate and persist missing secret values."""
-    from gatekeeper.config import Settings, _SECRETS_FILE, _persist_secrets
+    from gatekeeper.config import Settings
 
     with tempfile.TemporaryDirectory() as tmpdir:
         secrets_path = Path(tmpdir) / "test_secrets.json"

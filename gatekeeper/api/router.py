@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
 
-from gatekeeper.auth import validate_api_key
 from gatekeeper.api.proxy import GoogleProxy
+from gatekeeper.auth import validate_api_key
 from gatekeeper.config import settings
-from gatekeeper.models import ApiKey, RoutePolicy
-from gatekeeper.modules import get_loaded_modules, load_enabled_modules
-from sqlalchemy.ext.asyncio import AsyncSession
+from gatekeeper.models import ApiKey
+from gatekeeper.modules import load_enabled_modules
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +47,14 @@ def create_api_router() -> APIRouter:
                 path = f"/{parts[0]}"
 
             # Create the endpoint function dynamically
-            _make_endpoint(sub_router, module.name, route.route_id, path, route.method, route.description)
+            _make_endpoint(
+                sub_router,
+                module.name,
+                route.route_id,
+                path,
+                route.method,
+                route.description,
+            )
 
         router.include_router(sub_router)
         logger.info(f"Mounted API routes for module: {module.name}")
@@ -67,6 +72,7 @@ def _make_endpoint(
 ):
     """Create a dynamic endpoint for a route."""
     if method == "GET":
+
         @router.get(path, summary=description)
         async def endpoint(
             request: Request,
@@ -88,6 +94,7 @@ def _make_endpoint(
                 )
 
     elif method == "POST":
+
         @router.post(path, summary=description)
         async def endpoint(
             request: Request,
@@ -111,6 +118,7 @@ def _make_endpoint(
                 )
 
     elif method == "PUT":
+
         @router.put(path, summary=description)
         async def endpoint(
             request: Request,
@@ -134,6 +142,7 @@ def _make_endpoint(
                 )
 
     elif method == "PATCH":
+
         @router.patch(path, summary=description)
         async def endpoint(
             request: Request,
@@ -157,6 +166,7 @@ def _make_endpoint(
                 )
 
     elif method == "DELETE":
+
         @router.delete(path, summary=description)
         async def endpoint(
             request: Request,

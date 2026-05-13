@@ -166,7 +166,9 @@ class CalendarModule(GoogleModule):
                 route_id="calendar.events.quick_add",
                 method="POST",
                 google_path="/calendar/v3/calendars/{calendarId}/events/quickAdd",
-                description="Create event from natural text (e.g., 'Lunch with Alex tomorrow at noon')",
+                description=(
+                    "Create event from natural text (e.g., 'Lunch with Alex tomorrow at noon')"
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {

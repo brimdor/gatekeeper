@@ -12,7 +12,6 @@ from typing import Any
 
 from fastapi import FastAPI
 
-from gatekeeper.config import settings
 from gatekeeper.db import async_session
 from gatekeeper.models import ApiKey
 from gatekeeper.policy import PolicyEngine
@@ -20,7 +19,7 @@ from gatekeeper.policy import PolicyEngine
 logger = logging.getLogger(__name__)
 
 # Lazy-initialised singleton
-_mcp_instance: "FastMCP | None" = None
+_mcp_instance: Any | None = None
 
 
 async def _resolve_api_key(raw_key: str) -> ApiKey | None:
@@ -46,7 +45,7 @@ async def _resolve_api_key(raw_key: str) -> ApiKey | None:
     return None
 
 
-def create_mcp_server() -> "FastMCP":
+def create_mcp_server() -> Any:
     """Create a FastMCP instance that exposes enabled routes as tools.
 
     Tools are discovered dynamically on each list_tools call so that
@@ -80,9 +79,9 @@ def create_mcp_server() -> "FastMCP":
     @mcp._mcp_server.list_tools()
     async def list_tools(request):
         """Return MCP tools for all enabled routes."""
-        from gatekeeper.modules import load_module, AVAILABLE_MODULES
-
         from mcp.types import Tool as MCPTool
+
+        from gatekeeper.modules import AVAILABLE_MODULES, load_module
 
         tools: list[MCPTool] = []
 
@@ -109,14 +108,18 @@ def create_mcp_server() -> "FastMCP":
                         required.append("api_key")
 
                         # Strip module prefix from route_id to avoid redundancy
-                        # e.g., "gmail.messages.list" → suffix "messages.list" → "gmail__messages_list"
-                        route_suffix = route.route_id.split(".", 1)[1] if "." in route.route_id else route.route_id
+                        # e.g., "gmail.messages.list" → suffix "messages.list"
+                        #     → tool name "gmail__messages_list"
+                        route_suffix = (
+                            route.route_id.split(".", 1)[1]
+                            if "." in route.route_id
+                            else route.route_id
+                        )
                         tool_name = f"{module_name}__{route_suffix.replace('.', '_')}"
                         tools.append(
                             MCPTool(
                                 name=tool_name,
-                                description=route.description
-                                or f"{route.method} {route.route_id}",
+                                description=route.description or f"{route.method} {route.route_id}",
                                 inputSchema={
                                     **schema,
                                     "properties": props,
@@ -133,10 +136,10 @@ def create_mcp_server() -> "FastMCP":
     @mcp._mcp_server.call_tool(validate_input=False)
     async def call_tool(name: str, arguments: dict[str, Any]) -> list:
         """Call a tool by name, routing through the policy engine."""
+        import mcp.types as types
+
         from gatekeeper.api.proxy import GoogleProxy
         from gatekeeper.modules import load_module
-
-        import mcp.types as types
 
         # Extract and validate the API key
         api_key = arguments.pop("api_key", None)
@@ -144,7 +147,9 @@ def create_mcp_server() -> "FastMCP":
             return [
                 types.TextContent(
                     type="text",
-                    text=json.dumps({"error": True, "message": "API key required (pass as api_key argument)"}),
+                    text=json.dumps(
+                        {"error": True, "message": "API key required (pass as api_key argument)"}
+                    ),
                 )
             ]
 
@@ -159,7 +164,8 @@ def create_mcp_server() -> "FastMCP":
 
         # Parse module and route from tool name using module registry
         # Tool name format: "{module}__{route_suffix_with_underscores}"
-        # e.g., "gmail__messages_list" → module="gmail", look up route starting with "gmail.messages"
+        # e.g., "gmail__messages_list" → module="gmail",
+        #     look up route starting with "gmail.messages"
         parts = name.split("__", 1)
         if len(parts) != 2:
             return [
@@ -188,7 +194,9 @@ def create_mcp_server() -> "FastMCP":
         # and comparing with the tool name suffix
         route_id = None
         for route in mod.get_routes():
-            route_suffix_part = route.route_id.split(".", 1)[1] if "." in route.route_id else route.route_id
+            route_suffix_part = (
+                route.route_id.split(".", 1)[1] if "." in route.route_id else route.route_id
+            )
             if route_suffix_part.replace(".", "_") == route_suffix:
                 route_id = route.route_id
                 break
@@ -197,7 +205,9 @@ def create_mcp_server() -> "FastMCP":
             return [
                 types.TextContent(
                     type="text",
-                    text=json.dumps({"error": True, "message": f"Route not found for tool: {name}"}),
+                    text=json.dumps(
+                        {"error": True, "message": f"Route not found for tool: {name}"}
+                    ),
                 )
             ]
 
@@ -238,8 +248,6 @@ def mount_mcp_server(app: FastAPI) -> None:
     global _mcp_instance
 
     try:
-        from starlette.routing import Mount
-
         mcp = create_mcp_server()
         _mcp_instance = mcp
 

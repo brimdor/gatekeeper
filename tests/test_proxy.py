@@ -9,25 +9,21 @@ from __future__ import annotations
 
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
-from types import SimpleNamespace
 
 import pytest
-import pytest_asyncio
 from fastapi.responses import JSONResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from gatekeeper.api.proxy import GoogleProxy
 from gatekeeper.models import ApiKey, RoutePolicy
-from gatekeeper.api.proxy import GoogleProxy, GOOGLE_API_BASE, MODULE_API_MAP
-from gatekeeper.modules import load_module, get_loaded_modules, _loaded_modules
-
+from gatekeeper.modules import _loaded_modules
 
 # --------------------------------------------------------------------------- #
 # Helpers                                                                      #
 # --------------------------------------------------------------------------- #
 
+
 def _unwrap(response: JSONResponse) -> dict:
     """Extract the JSON body from a JSONResponse returned by GoogleProxy."""
-    import asyncio
     # JSONResponse.body is bytes, decode and parse
     return json.loads(response.body.decode())
 
@@ -63,6 +59,7 @@ def clear_module_cache():
 # URL construction tests — verify path params are correctly substituted
 # ---------------------------------------------------------------------------
 
+
 class TestURLConstruction:
     """Test that GoogleProxy builds the correct Google API URLs.
 
@@ -88,9 +85,10 @@ class TestURLConstruction:
         proxy = GoogleProxy(db_session)
 
         # Mock credential manager
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             # Mock the async context manager
@@ -104,7 +102,7 @@ class TestURLConstruction:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            result = await proxy.call_google(
+            await proxy.call_google(
                 module_name="calendar",
                 route_id="calendar.events.list",
                 params={"calendar_id": "primary", "maxResults": 10},
@@ -132,9 +130,10 @@ class TestURLConstruction:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             mock_response = MagicMock()
@@ -147,7 +146,7 @@ class TestURLConstruction:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            result = await proxy.call_google(
+            await proxy.call_google(
                 module_name="drive",
                 route_id="drive.files.get",
                 params={"file_id": "file123", "fields": "id,name"},
@@ -178,9 +177,10 @@ class TestURLConstruction:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             mock_response = MagicMock()
@@ -193,7 +193,7 @@ class TestURLConstruction:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            result = await proxy.call_google(
+            await proxy.call_google(
                 module_name="gmail",
                 route_id="gmail.messages.get",
                 params={"message_id": "msg_abc", "format": "full"},
@@ -223,9 +223,10 @@ class TestURLConstruction:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             mock_response = MagicMock()
@@ -238,7 +239,7 @@ class TestURLConstruction:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            result = await proxy.call_google(
+            await proxy.call_google(
                 module_name="gmail",
                 route_id="gmail.drafts.get",
                 params={"draft_id": "draft_xyz"},
@@ -265,9 +266,10 @@ class TestURLConstruction:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             mock_response = MagicMock()
@@ -280,7 +282,7 @@ class TestURLConstruction:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            result = await proxy.call_google(
+            await proxy.call_google(
                 module_name="drive",
                 route_id="drive.permissions.get",
                 params={"file_id": "fileABC", "permission_id": "permXYZ"},
@@ -312,9 +314,10 @@ class TestURLConstruction:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             mock_response = MagicMock()
@@ -327,7 +330,7 @@ class TestURLConstruction:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            result = await proxy.call_google(
+            await proxy.call_google(
                 module_name="calendar",
                 route_id="calendar.events.get",
                 params={"calendar_id": "primary", "event_id": "ev123"},
@@ -343,6 +346,7 @@ class TestURLConstruction:
 # ---------------------------------------------------------------------------
 # Parameter normalization (snake_case → camelCase)
 # ---------------------------------------------------------------------------
+
 
 class TestParameterNormalization:
     """Test snake_case → camelCase conversion and path param removal."""
@@ -362,9 +366,10 @@ class TestParameterNormalization:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             mock_response = MagicMock()
@@ -408,9 +413,10 @@ class TestParameterNormalization:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             mock_response = MagicMock()
@@ -457,9 +463,10 @@ class TestParameterNormalization:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             mock_response = MagicMock()
@@ -503,9 +510,10 @@ class TestParameterNormalization:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             mock_response = MagicMock()
@@ -548,9 +556,10 @@ class TestParameterNormalization:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             mock_response = MagicMock()
@@ -582,6 +591,7 @@ class TestParameterNormalization:
 # Policy enforcement integration
 # ---------------------------------------------------------------------------
 
+
 class TestPolicyEnforcement:
     """Test policy enforcement through the proxy layer."""
 
@@ -600,9 +610,10 @@ class TestPolicyEnforcement:
         api_key = _make_api_key(permissions="*")
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             mock_response = MagicMock()
@@ -642,9 +653,10 @@ class TestPolicyEnforcement:
         api_key = _make_api_key(permissions="*")
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager"), \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient"):
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager"),
+            patch("gatekeeper.api.proxy.httpx.AsyncClient"),
+        ):
             result = await proxy.call_google(
                 module_name="gmail",
                 route_id="gmail.messages.send",
@@ -674,9 +686,10 @@ class TestPolicyEnforcement:
         api_key = _make_api_key(permissions="drive")
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager"), \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient"):
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager"),
+            patch("gatekeeper.api.proxy.httpx.AsyncClient"),
+        ):
             result = await proxy.call_google(
                 module_name="gmail",
                 route_id="gmail.messages.list",
@@ -696,9 +709,10 @@ class TestPolicyEnforcement:
         api_key = _make_api_key(permissions="*")
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager"), \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient"):
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager"),
+            patch("gatekeeper.api.proxy.httpx.AsyncClient"),
+        ):
             result = await proxy.call_google(
                 module_name="drive",
                 route_id="drive.files.list",
@@ -727,9 +741,10 @@ class TestPolicyEnforcement:
         api_key = _make_api_key(permissions="*")
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             mock_response = MagicMock()
@@ -743,7 +758,7 @@ class TestPolicyEnforcement:
             mock_client_cls.return_value = mock_client
 
             # Request maxResults=200, but policy caps to 10
-            result = await proxy.call_google(
+            await proxy.call_google(
                 module_name="gmail",
                 route_id="gmail.messages.list",
                 params={"maxResults": 200},
@@ -760,6 +775,7 @@ class TestPolicyEnforcement:
 # ---------------------------------------------------------------------------
 # Credential handling
 # ---------------------------------------------------------------------------
+
 
 class TestCredentialHandling:
     """Test credential-related behavior in the proxy."""
@@ -783,7 +799,7 @@ class TestCredentialHandling:
             # Return None credentials
             mock_cm.get_credentials.return_value = None
 
-            with patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
+            with patch("gatekeeper.api.proxy.httpx.AsyncClient"):
                 result = await proxy.call_google(
                     module_name="gmail",
                     route_id="gmail.messages.list",
@@ -845,9 +861,10 @@ class TestCredentialHandling:
         api_key = _make_api_key(permissions="*")
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds(token="ya29.test_token")
 
             mock_response = MagicMock()
@@ -878,6 +895,7 @@ class TestCredentialHandling:
 # HTTP method dispatch
 # ---------------------------------------------------------------------------
 
+
 class TestHTTPMethodDispatch:
     """Test that the proxy uses the correct HTTP method for each route."""
 
@@ -896,9 +914,10 @@ class TestHTTPMethodDispatch:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
             mock_response = MagicMock()
             mock_response.json.return_value = {}
@@ -936,9 +955,10 @@ class TestHTTPMethodDispatch:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
             mock_response = MagicMock()
             mock_response.json.return_value = {"id": "new"}
@@ -975,9 +995,10 @@ class TestHTTPMethodDispatch:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
             mock_response = MagicMock()
             mock_response.json.return_value = {}
@@ -1014,9 +1035,10 @@ class TestHTTPMethodDispatch:
         api_key = _make_api_key()
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
             mock_response = MagicMock()
             mock_response.json.return_value = {"id": "ev1", "summary": "Updated"}
@@ -1043,6 +1065,7 @@ class TestHTTPMethodDispatch:
 # Response filter integration
 # ---------------------------------------------------------------------------
 
+
 class TestResponseFilterIntegration:
     """Test that response filters are applied through the proxy."""
 
@@ -1061,9 +1084,10 @@ class TestResponseFilterIntegration:
         api_key = _make_api_key(permissions="*")
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             # Mock Google returning data with raw and internalDate
@@ -1110,9 +1134,10 @@ class TestResponseFilterIntegration:
         api_key = _make_api_key(permissions="*")
         proxy = GoogleProxy(db_session)
 
-        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm, \
-             patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls:
-
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_cm.get_credentials.return_value = _mock_creds()
 
             # Mock Google returning 10 messages
@@ -1144,6 +1169,7 @@ class TestResponseFilterIntegration:
 # ---------------------------------------------------------------------------
 # Module not found
 # ---------------------------------------------------------------------------
+
 
 class TestModuleNotFound:
     """Test proxy behavior when module is not found."""

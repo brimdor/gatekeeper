@@ -8,14 +8,9 @@ import base64
 
 import bcrypt
 import pytest
-import pytest_asyncio
-from fastapi import Depends, FastAPI
-from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gatekeeper.models import ApiKey
-
 
 # ══════════════════════════════════════════════════════════════════════════
 # 1. ApiKey generation tests (pure unit tests, no DB needed)
@@ -65,7 +60,9 @@ class TestApiKeyValidation:
     async def test_valid_key_found_in_db(self, db_session):
         """A valid active key should be findable in the database."""
         raw, hash_val, prefix = ApiKey.generate_key()
-        key = ApiKey(name="test-key", key_hash=hash_val, key_prefix=prefix, permissions="*", is_active=True)
+        key = ApiKey(
+            name="test-key", key_hash=hash_val, key_prefix=prefix, permissions="*", is_active=True
+        )
         db_session.add(key)
         await db_session.commit()
 
@@ -81,7 +78,13 @@ class TestApiKeyValidation:
     async def test_inactive_key_not_found_by_query(self, db_session):
         """Inactive keys should be excluded from the is_active query."""
         raw, hash_val, prefix = ApiKey.generate_key()
-        key = ApiKey(name="inactive-key", key_hash=hash_val, key_prefix=prefix, permissions="*", is_active=False)
+        key = ApiKey(
+            name="inactive-key",
+            key_hash=hash_val,
+            key_prefix=prefix,
+            permissions="*",
+            is_active=False,
+        )
         db_session.add(key)
         await db_session.commit()
 
@@ -93,7 +96,13 @@ class TestApiKeyValidation:
         """Multiple active keys should all be retrievable."""
         for i in range(3):
             raw, hash_val, prefix = ApiKey.generate_key()
-            key = ApiKey(name=f"key-{i}", key_hash=hash_val, key_prefix=prefix, permissions="*", is_active=True)
+            key = ApiKey(
+                name=f"key-{i}",
+                key_hash=hash_val,
+                key_prefix=prefix,
+                permissions="*",
+                is_active=True,
+            )
             db_session.add(key)
         await db_session.commit()
 
@@ -214,15 +223,24 @@ class TestApiKeyDB:
     async def test_inactive_key_not_in_active_query(self, db_session):
         """Only active keys should appear in active queries."""
         raw1, hash1, prefix1 = ApiKey.generate_key()
-        key1 = ApiKey(name="active-key", key_hash=hash1, key_prefix=prefix1, permissions="*", is_active=True)
+        key1 = ApiKey(
+            name="active-key", key_hash=hash1, key_prefix=prefix1, permissions="*", is_active=True
+        )
         db_session.add(key1)
 
         raw2, hash2, prefix2 = ApiKey.generate_key()
-        key2 = ApiKey(name="inactive-key", key_hash=hash2, key_prefix=prefix2, permissions="*", is_active=False)
+        key2 = ApiKey(
+            name="inactive-key",
+            key_hash=hash2,
+            key_prefix=prefix2,
+            permissions="*",
+            is_active=False,
+        )
         db_session.add(key2)
         await db_session.commit()
 
         from sqlalchemy import func
+
         active_count = await db_session.scalar(
             select(func.count(ApiKey.id)).where(ApiKey.is_active == True)  # noqa: E712
         )

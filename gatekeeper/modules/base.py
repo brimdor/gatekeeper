@@ -51,7 +51,9 @@ class GoogleModule(ABC):
         for route in self.get_routes():
             # Strip module prefix from route_id to avoid redundancy
             # e.g., "drive.files.list" → suffix "files.list" → "drive__files_list"
-            route_suffix = route.route_id.split(".", 1)[1] if "." in route.route_id else route.route_id
+            route_suffix = (
+                route.route_id.split(".", 1)[1] if "." in route.route_id else route.route_id
+            )
             tools.append(
                 {
                     "name": f"{self.name}__{route_suffix.replace('.', '_')}",

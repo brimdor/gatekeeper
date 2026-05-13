@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
-
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from gatekeeper.db import async_session
 from gatekeeper.models import AuditLog
@@ -20,7 +17,7 @@ async def log_request(
     method: str,
     path: str,
     status_code: int,
-    response_summary: Optional[str] = None,
+    response_summary: str | None = None,
 ) -> None:
     """Log a gateway request to the audit trail.
 

@@ -1,11 +1,9 @@
 """Tests for the API proxy layer."""
 
 import json
+
 import pytest
-import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
 
 from gatekeeper.models import ApiKey, RoutePolicy
 
@@ -112,7 +110,6 @@ class TestApiProxy:
     async def test_audit_log_written_on_denied_request(self, db_session):
         """A denied request should still create an audit log entry."""
         from gatekeeper.api.proxy import GoogleProxy
-        from gatekeeper.models import AuditLog
 
         raw, hash_val, prefix = ApiKey.generate_key()
         key = ApiKey(name="test", key_hash=hash_val, key_prefix=prefix, permissions="drive")

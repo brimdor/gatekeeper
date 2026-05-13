@@ -6,7 +6,6 @@ import json
 import logging
 import secrets
 from pathlib import Path
-from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -54,8 +53,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./gatekeeper.db"
 
     # Google OAuth
-    google_client_id: Optional[str] = None
-    google_client_secret: Optional[str] = None
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
     google_token_file: str = "./google_token.json"
 
     # Admin
@@ -115,7 +114,7 @@ class Settings(BaseSettings):
                 logger.info("=" * 60)
                 print(f"\n{'=' * 60}")
                 print(f"🔑 Admin password generated: {self.admin_password}")
-                print(f"   Saved to gatekeeper_secrets.json")
+                print("   Saved to gatekeeper_secrets.json")
                 print(f"{'=' * 60}\n")
 
         if not self.encryption_key:

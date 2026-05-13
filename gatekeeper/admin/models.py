@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -19,8 +18,8 @@ class ApiKeyResponse(BaseModel):
     key_prefix: str
     is_active: bool
     permissions: str
-    created_at: Optional[datetime] = None
-    last_used_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    last_used_at: datetime | None = None
 
 
 class ApiKeyCreated(BaseModel):
@@ -31,9 +30,9 @@ class ApiKeyCreated(BaseModel):
 
 
 class RoutePolicyUpdate(BaseModel):
-    enabled: Optional[bool] = None
-    policy_config: Optional[dict] = None
-    description: Optional[str] = None
+    enabled: bool | None = None
+    policy_config: dict | None = None
+    description: str | None = None
 
 
 class RoutePolicyResponse(BaseModel):
@@ -42,7 +41,7 @@ class RoutePolicyResponse(BaseModel):
     route: str
     enabled: bool
     policy_config: str
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class AuditLogResponse(BaseModel):
@@ -53,8 +52,8 @@ class AuditLogResponse(BaseModel):
     method: str
     path: str
     status_code: int
-    response_summary: Optional[str] = None
-    created_at: Optional[datetime] = None
+    response_summary: str | None = None
+    created_at: datetime | None = None
 
 
 class AuthStatus(BaseModel):

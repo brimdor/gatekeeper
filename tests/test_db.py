@@ -1,11 +1,8 @@
 """Tests for database models and encryption."""
 
 import pytest
-import pytest_asyncio
 from cryptography.fernet import Fernet
 from sqlalchemy import select
-
-from gatekeeper.db import Base
 
 
 class TestEncryption:
@@ -13,8 +10,8 @@ class TestEncryption:
 
     def test_encrypt_decrypt_roundtrip(self):
         """Encrypting then decrypting should return the original value."""
-        from gatekeeper.encryption import encrypt_value, decrypt_value
         from gatekeeper.config import Settings
+        from gatekeeper.encryption import decrypt_value, encrypt_value
 
         fernet_key = Fernet.generate_key().decode()
         settings = Settings(
@@ -41,9 +38,9 @@ class TestEncryption:
             gatekeeper.encryption.settings = original_settings
 
     def test_encrypt_produces_different_ciphertexts(self):
-        """Two encryptions of the same plaintext should produce different ciphertexts (Fernet uses IV)."""
-        from gatekeeper.encryption import encrypt_value
+        """Two encryptions of the same plaintext produce different ciphertexts (Fernet uses IV)."""
         from gatekeeper.config import Settings
+        from gatekeeper.encryption import encrypt_value
 
         fernet_key = Fernet.generate_key().decode()
         settings = Settings(
@@ -68,8 +65,8 @@ class TestEncryption:
 
     def test_hex_key_backwards_compatibility(self):
         """Old hex-encoded keys should still work for decryption."""
-        from gatekeeper.encryption import encrypt_value, decrypt_value
         from gatekeeper.config import Settings
+        from gatekeeper.encryption import decrypt_value, encrypt_value
 
         # Use old hex format key
         hex_key = "d" * 64
@@ -139,9 +136,7 @@ class TestDBModels:
         db_session.add(policy)
         await db_session.commit()
 
-        result = await db_session.execute(
-            select(RoutePolicy).where(RoutePolicy.module == "gmail")
-        )
+        result = await db_session.execute(select(RoutePolicy).where(RoutePolicy.module == "gmail"))
         fetched = result.scalar_one()
         assert fetched.module == "gmail"
         assert fetched.route == "gmail.messages.list"
@@ -188,8 +183,9 @@ class TestDBModels:
 
     async def test_google_token_unique_service(self, db_session):
         """GoogleToken service field should be unique."""
-        from gatekeeper.models import GoogleToken
         from sqlalchemy.exc import IntegrityError
+
+        from gatekeeper.models import GoogleToken
 
         token1 = GoogleToken(service="drive", encrypted_token="blob1")
         token2 = GoogleToken(service="drive", encrypted_token="blob2")

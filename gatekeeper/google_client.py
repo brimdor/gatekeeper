@@ -1,4 +1,5 @@
-"""Google OAuth credential management — device auth flow and desktop flow with encrypted token storage."""
+"""Google OAuth credential management — device auth flow
+and desktop flow with encrypted token storage."""
 
 from __future__ import annotations
 
@@ -7,7 +8,6 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Optional
 
 import httpx
 from google.auth.transport.requests import Request
@@ -35,12 +35,12 @@ class GoogleCredentialManager:
        redirect automatically. Better UX when running locally.
     """
 
-    def __init__(self, token_path: Optional[Path] = None):
+    def __init__(self, token_path: Path | None = None):
         self.token_path = token_path or Path(settings.google_token_file)
-        self._credentials: Optional[Credentials] = None
+        self._credentials: Credentials | None = None
         self._lock = threading.Lock()
 
-    def load_credentials(self) -> Optional[Credentials]:
+    def load_credentials(self) -> Credentials | None:
         """Load credentials from the encrypted token file.
 
         Returns None if no token file exists.
@@ -58,6 +58,7 @@ class GoogleCredentialManager:
             expiry = None
             if data.get("expiry"):
                 from datetime import datetime
+
                 expiry = datetime.fromisoformat(data["expiry"])
 
             creds = Credentials(
@@ -76,7 +77,7 @@ class GoogleCredentialManager:
             logger.error(f"Failed to load credentials: {e}")
             return None
 
-    def refresh_if_needed(self) -> Optional[Credentials]:
+    def refresh_if_needed(self) -> Credentials | None:
         """Refresh credentials if expired or expiry is unknown.
 
         Credentials loaded from disk without an expiry field have
@@ -91,9 +92,8 @@ class GoogleCredentialManager:
                 return None
 
             needs_refresh = (
-                (self._credentials.expired or self._credentials.expiry is None)
-                and self._credentials.refresh_token
-            )
+                self._credentials.expired or self._credentials.expiry is None
+            ) and self._credentials.refresh_token
             if needs_refresh:
                 try:
                     self._credentials.refresh(Request())
@@ -105,7 +105,7 @@ class GoogleCredentialManager:
 
             return self._credentials
 
-    def get_credentials(self) -> Optional[Credentials]:
+    def get_credentials(self) -> Credentials | None:
         """Get valid credentials, refreshing if needed."""
         return self.refresh_if_needed()
 
@@ -156,7 +156,7 @@ class GoogleCredentialManager:
 
         return list(scopes)
 
-    def start_device_auth_flow(self, scopes: Optional[list[str]] = None) -> Optional[Credentials]:
+    def start_device_auth_flow(self, scopes: list[str] | None = None) -> Credentials | None:
         """Run the Google Device Authorization flow (link + code).
 
         This is the recommended flow for headless servers and remote setups.
@@ -218,11 +218,11 @@ class GoogleCredentialManager:
         print(f"\n{'=' * 60}")
         print("🔐 Google Account Authorization")
         print(f"{'=' * 60}")
-        print(f"\n  1. Open this URL on any device:")
+        print("\n  1. Open this URL on any device:")
         print(f"     {verification_url}\n")
-        print(f"  2. Enter this code:")
+        print("  2. Enter this code:")
         print(f"     {user_code}\n")
-        print(f"  3. Authorize Gatekeeper to access your Google data.")
+        print("  3. Authorize Gatekeeper to access your Google data.")
         print(f"\n  ⏳ Waiting for authorization (expires in {expires_in // 60} minutes)...")
         print(f"{'=' * 60}\n")
 
@@ -292,7 +292,7 @@ class GoogleCredentialManager:
         print("\n❌ Authorization timed out. Please try again.\n")
         return None
 
-    def start_desktop_auth_flow(self, scopes: Optional[list[str]] = None) -> Optional[Credentials]:
+    def start_desktop_auth_flow(self, scopes: list[str] | None = None) -> Credentials | None:
         """Run the desktop OAuth flow (opens browser on local machine).
 
         This is the traditional OAuth flow — starts a local HTTP server,
@@ -353,7 +353,11 @@ class GoogleCredentialManager:
             print(f"\n❌ OAuth flow failed: {e}\n")
             return None
 
-    def start_auth_flow(self, flow: str = "device", scopes: Optional[list[str]] = None) -> Optional[Credentials]:
+    def start_auth_flow(
+        self,
+        flow: str = "device",
+        scopes: list[str] | None = None,
+    ) -> Credentials | None:
         """Run an OAuth authorization flow.
 
         Args:

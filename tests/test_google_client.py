@@ -1,10 +1,10 @@
 """Tests for Google OAuth client and credential management."""
 
 import json
-import pytest
-from cryptography.fernet import Fernet
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+from cryptography.fernet import Fernet
 
 from gatekeeper.config import Settings
 
@@ -33,8 +33,8 @@ class TestGoogleCredentialManager:
 
         settings = _make_settings(tmp_path)
         mgr = GoogleCredentialManager(token_path=Path(settings.google_token_file))
-        import gatekeeper.google_client
         import gatekeeper.encryption
+        import gatekeeper.google_client
 
         orig = gatekeeper.google_client.settings
         orig_enc = gatekeeper.encryption.settings
@@ -50,14 +50,15 @@ class TestGoogleCredentialManager:
 
     def test_save_and_load_roundtrip(self, tmp_path):
         """Saving and loading credentials should round-trip correctly."""
-        from gatekeeper.google_client import GoogleCredentialManager
         from google.oauth2.credentials import Credentials
+
+        from gatekeeper.google_client import GoogleCredentialManager
 
         settings = _make_settings(tmp_path)
         token_path = Path(settings.google_token_file)
 
-        import gatekeeper.google_client
         import gatekeeper.encryption
+        import gatekeeper.google_client
 
         orig = gatekeeper.google_client.settings
         orig_enc = gatekeeper.encryption.settings
@@ -134,7 +135,7 @@ class TestGoogleCredentialManager:
 
     def test_credential_manager_singleton_exists(self):
         """The module-level singleton should exist."""
-        from gatekeeper.google_client import credential_manager, GoogleCredentialManager
+        from gatekeeper.google_client import GoogleCredentialManager, credential_manager
 
         assert credential_manager is not None
         assert isinstance(credential_manager, GoogleCredentialManager)
@@ -165,14 +166,15 @@ class TestDeviceAuthFlow:
 
     def test_device_auth_mock_success(self, tmp_path):
         """Device auth flow should succeed with mocked HTTP responses."""
-        from gatekeeper.google_client import GoogleCredentialManager
         from google.oauth2.credentials import Credentials
+
+        from gatekeeper.google_client import GoogleCredentialManager
 
         settings = _make_settings(tmp_path)
         token_path = Path(settings.google_token_file)
 
-        import gatekeeper.google_client
         import gatekeeper.encryption
+        import gatekeeper.google_client
 
         orig = gatekeeper.google_client.settings
         orig_enc = gatekeeper.encryption.settings
@@ -233,8 +235,8 @@ class TestDeviceAuthFlow:
         settings = _make_settings(tmp_path)
         token_path = Path(settings.google_token_file)
 
-        import gatekeeper.google_client
         import gatekeeper.encryption
+        import gatekeeper.google_client
 
         orig = gatekeeper.google_client.settings
         orig_enc = gatekeeper.encryption.settings
@@ -271,7 +273,11 @@ class TestDeviceAuthFlow:
             mock_client = MagicMock()
             mock_client.__enter__ = MagicMock(return_value=mock_client)
             mock_client.__exit__ = MagicMock(return_value=False)
-            mock_client.post.side_effect = [device_code_response, pending_response, success_response]
+            mock_client.post.side_effect = [
+                device_code_response,
+                pending_response,
+                success_response,
+            ]
 
             with patch("gatekeeper.google_client.httpx.Client", return_value=mock_client):
                 with patch("gatekeeper.google_client.time.sleep"):  # Skip sleeps in test
@@ -296,6 +302,7 @@ class TestDeviceAuthFlow:
         settings.calendar_enabled = False
 
         import gatekeeper.google_client
+
         orig = gatekeeper.google_client.settings
         gatekeeper.google_client.settings = settings
 

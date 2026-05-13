@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-import bcrypt
 import hmac
+from datetime import UTC
+
+import bcrypt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy import select
@@ -11,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gatekeeper.config import settings
 from gatekeeper.db import async_session
+from gatekeeper.models import ApiKey
 
 api_key_header_scheme = "X-Gatekeeper-API-Key"
 http_basic = HTTPBasic()
@@ -25,16 +28,14 @@ async def get_db_session() -> AsyncSession:
 async def validate_api_key(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
-) -> "ApiKey":
+) -> ApiKey:
     """Validate the API key from the request header.
-    
+
     Reads the X-Gatekeeper-API-Key header, finds the key by prefix match,
     verifies the bcrypt hash, and returns the ApiKey record.
-    
+
     Raises HTTP 401 on invalid or missing keys.
     """
-    from gatekeeper.models import ApiKey
-
     api_key = request.headers.get(api_key_header_scheme)
     if not api_key:
         raise HTTPException(
@@ -52,9 +53,9 @@ async def validate_api_key(
             # Verify hash
             if bcrypt.checkpw(api_key.encode(), key_record.key_hash.encode()):
                 # Update last_used_at
-                from datetime import datetime, timezone
+                from datetime import datetime
 
-                key_record.last_used_at = datetime.now(timezone.utc)
+                key_record.last_used_at = datetime.now(UTC)
                 await db.commit()
                 request.state.api_key = key_record
                 return key_record
@@ -69,12 +70,11 @@ async def require_admin(
     credentials: HTTPBasicCredentials = Depends(http_basic),
 ) -> HTTPBasicCredentials:
     """Require HTTP Basic Auth with valid admin credentials.
-    
+
     Raises HTTP 401 on invalid credentials.
     """
-    if (
-        hmac.compare_digest(credentials.username, settings.admin_username)
-        and hmac.compare_digest(credentials.password, settings.admin_password)
+    if hmac.compare_digest(credentials.username, settings.admin_username) and hmac.compare_digest(
+        credentials.password, settings.admin_password
     ):
         return credentials
     raise HTTPException(

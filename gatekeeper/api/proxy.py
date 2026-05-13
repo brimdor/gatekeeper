@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
-import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gatekeeper.auth import validate_api_key
 from gatekeeper.google_client import credential_manager
 from gatekeeper.logging import log_request
-from gatekeeper.models import ApiKey, RoutePolicy
-from gatekeeper.modules.base import GoogleModule
-from gatekeeper.modules import load_module, get_loaded_modules
+from gatekeeper.models import ApiKey
+from gatekeeper.modules import get_loaded_modules, load_module
 from gatekeeper.policy import PolicyEngine
 
 logger = logging.getLogger(__name__)
@@ -87,7 +84,11 @@ class GoogleProxy:
             if not module:
                 return JSONResponse(
                     status_code=404,
-                    content={"error": True, "status": 404, "message": f"Module {module_name} not found"},
+                    content={
+                        "error": True,
+                        "status": 404,
+                        "message": f"Module {module_name} not found",
+                    },
                 )
 
         route = None
@@ -112,7 +113,11 @@ class GoogleProxy:
         if not creds or not creds.token:
             return JSONResponse(
                 status_code=401,
-                content={"error": True, "status": 401, "message": "Google credentials not configured. Run 'gatekeeper auth'."},
+                content={
+                    "error": True,
+                    "status": 401,
+                    "message": ("Google credentials not configured. Run 'gatekeeper auth'."),
+                },
             )
 
         # Build Google API URL
@@ -160,7 +165,12 @@ class GoogleProxy:
                 elif route.method == "PUT":
                     response = await client.put(url, json=normalized_params, headers=headers)
                 else:
-                    response = await client.request(route.method, url, json=normalized_params, headers=headers)
+                    response = await client.request(
+                        route.method,
+                        url,
+                        json=normalized_params,
+                        headers=headers,
+                    )
 
             # Parse response
             try:
@@ -201,7 +211,11 @@ class GoogleProxy:
             )
             return JSONResponse(
                 status_code=502,
-                content={"error": True, "status": 502, "message": f"Google API request failed: {e}"},
+                content={
+                    "error": True,
+                    "status": 502,
+                    "message": f"Google API request failed: {e}",
+                },
             )
 
         except Exception as e:

@@ -19,6 +19,7 @@ def _get_fernet() -> Fernet:
     # If it's 64 hex chars (old format), convert to Fernet key
     if len(key) == 64 and all(c in "0123456789abcdefABCDEF" for c in key):
         import base64
+
         raw_bytes = bytes.fromhex(key)
         fernet_key = base64.urlsafe_b64encode(raw_bytes)
         return Fernet(fernet_key)
