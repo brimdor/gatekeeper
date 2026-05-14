@@ -367,7 +367,10 @@ class GmailModule(GoogleModule):
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "Gmail search query for the filter criteria (e.g., 'from:alice@example.com')",
+                            "description": (
+                                "Gmail search query for the filter criteria "
+                                "(e.g., 'from:alice@example.com')"
+                            ),
                         },
                         "label_ids": {
                             "type": "array",
@@ -476,12 +479,18 @@ class GmailModule(GoogleModule):
                         },
                         "label_list_visibility": {
                             "type": "string",
-                            "description": "Whether the label is visible in the label list: 'labelShow' or 'labelHide'",
+                            "description": (
+                                "Whether the label is visible in the "
+                                "label list: 'labelShow' or 'labelHide'"
+                            ),
                             "default": "labelShow",
                         },
                         "message_list_visibility": {
                             "type": "string",
-                            "description": "Whether messages with this label are visible in the message list: 'show' or 'hide'",
+                            "description": (
+                                "Whether messages with this label are "
+                                "visible in the message list: 'show' or 'hide'"
+                            ),
                             "default": "show",
                         },
                     },
@@ -508,11 +517,17 @@ class GmailModule(GoogleModule):
                         },
                         "label_list_visibility": {
                             "type": "string",
-                            "description": "Whether the label is visible in the label list: 'labelShow' or 'labelHide'",
+                            "description": (
+                                "Whether the label is visible in the "
+                                "label list: 'labelShow' or 'labelHide'"
+                            ),
                         },
                         "message_list_visibility": {
                             "type": "string",
-                            "description": "Whether messages with this label are visible in the message list: 'show' or 'hide'",
+                            "description": (
+                                "Whether messages with this label are "
+                                "visible in the message list: 'show' or 'hide'"
+                            ),
                         },
                     },
                     "required": ["label_id"],

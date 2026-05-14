@@ -270,9 +270,10 @@ class TestEnsureDefaultKeyRestartSafety:
         Patches both gatekeeper.db and gatekeeper.main because main.py
         imports async_session as a module-level binding.
         """
+        from sqlalchemy.pool import StaticPool
+
         import gatekeeper.db
         import gatekeeper.main
-        from sqlalchemy.pool import StaticPool
 
         engine = create_async_engine(
             "sqlite+aiosqlite:///:memory:",
