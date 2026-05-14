@@ -594,7 +594,7 @@ class TestReadFromTerminal:
             mock_stdin.isatty.return_value = False
             result = _read_from_terminal("prompt: ")
             assert result == "hello from dev/tty\n"
-            mock_open.assert_called_once_with("/dev/tty", "r")
+            mock_open.assert_called_once_with("/dev/tty")
 
     def test_read_from_terminal_fallback_on_oserror(self):
         """When /dev/tty can't be opened, fall back to input()."""

@@ -41,7 +41,7 @@ def _read_from_terminal(prompt: str) -> str:
         # controlling terminal directly.
         sys.stdout.write(prompt)
         sys.stdout.flush()
-        with open("/dev/tty", "r") as tty:
+        with open("/dev/tty") as tty:
             return tty.readline()
     except OSError:
         # /dev/tty doesn't exist (Windows) or can't be opened (detached).
