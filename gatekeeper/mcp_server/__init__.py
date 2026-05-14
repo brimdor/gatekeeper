@@ -11,6 +11,7 @@ import logging
 from typing import Any
 
 from fastapi import FastAPI
+from starlette.responses import JSONResponse
 
 from gatekeeper.config import settings
 from gatekeeper.db import async_session
@@ -260,7 +261,20 @@ def create_mcp_server() -> Any:
                 request_method="POST",
             )
 
-        # Return as MCP content
+        # Extract the response body — call_google returns a JSONResponse
+        if isinstance(result, JSONResponse):
+            # JSONResponse.body is bytes (JSON-encoded)
+            result_body = result.body
+            if isinstance(result_body, (bytes, memoryview)):
+                result_body = bytes(result_body).decode("utf-8")
+            return [
+                types.TextContent(
+                    type="text",
+                    text=str(result_body),
+                )
+            ]
+
+        # Fallback for dict or other types
         return [
             types.TextContent(
                 type="text",
