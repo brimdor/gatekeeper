@@ -319,15 +319,19 @@ class GoogleCredentialManager:
         return None
 
     def start_desktop_auth_flow(self, scopes: list[str] | None = None) -> Credentials | None:
-        """Run the desktop OAuth flow (opens browser on local machine).
+        """Run the desktop OAuth flow (browser authorization).
 
-        This is the recommended auth flow for Gatekeeper. It starts a local
-        HTTP server, opens the browser, captures the redirect, and exchanges
-        the authorization code for tokens. Works with Google OAuth clients
-        of type "Desktop app".
+        This is the recommended auth flow for Gatekeeper. Works with Google
+        OAuth clients of type "Desktop app".
 
-        Falls back to printing the URL if opening the browser fails (e.g.,
-        headless environments), so the user can open it manually.
+        On machines with a display (local desktop, VNC), it starts a
+        temporary HTTP server and opens the browser — the redirect is
+        captured automatically.
+
+        On headless/SSH environments (no DISPLAY), it uses a manual
+        code exchange: prints the auth URL, the user opens it on any
+        device, and pastes the redirect URL back into the terminal.
+        This works perfectly over SSH.
 
         Args:
             scopes: OAuth scopes to request. Defaults to all enabled module scopes.
@@ -335,8 +339,6 @@ class GoogleCredentialManager:
         Returns:
             Valid credentials on success, None on failure.
         """
-        from google_auth_oauthlib.flow import InstalledAppFlow
-
         if not settings.google_client_id or not settings.google_client_secret:
             logger.error("Google OAuth client ID/secret not configured")
             print("\n❌ ERROR: Set GATEKEEPER_GOOGLE_CLIENT_ID and GATEKEEPER_GOOGLE_CLIENT_SECRET")
@@ -353,6 +355,10 @@ class GoogleCredentialManager:
                 "https://www.googleapis.com/auth/calendar.readonly",
             ]
 
+        import os
+
+        has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
         client_config = {
             "installed": {
                 "client_id": settings.google_client_id,
@@ -363,17 +369,29 @@ class GoogleCredentialManager:
             }
         }
 
+        if has_display:
+            # Local machine with a display — open browser automatically
+            return self._auth_with_local_server(client_config, scopes)
+        else:
+            # SSH / headless — manual code exchange that works anywhere
+            return self._auth_with_manual_code(client_config, scopes)
+
+    def _auth_with_local_server(
+        self, client_config: dict, scopes: list[str]
+    ) -> Credentials | None:
+        """Auth flow with local HTTP server (for machines with a display)."""
+        from google_auth_oauthlib.flow import InstalledAppFlow
+
         print(f"\n{'=' * 60}")
-        print("🌐 Google Account Authorization (Desktop Flow)")
+        print("🌐 Google Account Authorization")
         print(f"{'=' * 60}")
-        print("\n  A browser window will open for you to authorize Gatekeeper.")
-        print("  If the browser doesn't open, the URL will be printed below.\n")
-        logger.info("Starting desktop OAuth flow for scopes: %s", scopes)
+        print("\n  Opening your browser for authorization...")
+        print("  Authorize Gatekeeper to access your Google data.\n")
+        logger.info("Starting desktop OAuth flow (local server) for scopes: %s", scopes)
 
         try:
             flow = InstalledAppFlow.from_client_config(client_config, scopes=scopes)
-            # run_local_server: port=0 = pick any free port
-            # open_browser=True attempts to open the default browser
+            # port=0 = pick any free port, open_browser=True auto-opens browser
             creds = flow.run_local_server(port=0, open_browser=True)
 
             self._credentials = creds
@@ -395,9 +413,90 @@ class GoogleCredentialManager:
         except Exception as e:
             logger.error(f"OAuth desktop flow failed: {e}")
             print(f"\n❌ Authorization failed: {e}")
-            print("\n   If the browser didn't open, try running on a machine with a")
-            print("   display, or use the device flow:")
-            print("     gatekeeper auth --flow device")
+            print("\n   If the browser didn't open, try the manual code exchange")
+            print("   by running without DISPLAY set, or from an SSH session:")
+            print("     unset DISPLAY; gatekeeper auth")
+            print()
+            return None
+
+    def _auth_with_manual_code(
+        self, client_config: dict, scopes: list[str]
+    ) -> Credentials | None:
+        """Manual auth flow for SSH / headless environments.
+
+        Generates the auth URL, the user opens it on any device,
+        authorizes, and pastes the redirect URL back into the terminal.
+        We extract the auth code from the redirect URL and exchange it
+        for tokens. This works perfectly over SSH.
+        """
+        from google_auth_oauthlib.flow import InstalledAppFlow
+        import urllib.parse
+
+        print(f"\n{'=' * 60}")
+        print("🔐 Google Account Authorization (Manual Code Exchange)")
+        print(f"{'=' * 60}")
+        print("\n  You're running on a headless/SSH environment.")
+        print("  Follow these steps to authorize Gatekeeper:\n")
+        logger.info("Starting desktop OAuth flow (manual code) for scopes: %s", scopes)
+
+        try:
+            flow = InstalledAppFlow.from_client_config(client_config, scopes=scopes)
+            # Set redirect URI to localhost (the OOB replacement for Desktop apps)
+            flow.redirect_uri = "http://localhost"
+
+            auth_url, _ = flow.authorization_url(prompt="consent")
+
+            print("  1. Open this URL on any device (phone, laptop, tablet):")
+            print(f"\n     {auth_url}\n")
+            print("  2. Authorize Gatekeeper to access your Google data.")
+            print("  3. After authorizing, your browser will redirect to a URL")
+            print("     that starts with http://localhost?code=...")
+            print("     (The page won't load — that's expected.)")
+            print("\n  4. Copy the FULL URL from your browser's address bar and")
+            print("     paste it below:\n")
+
+            redirect_url = input("  Paste the redirect URL: ").strip()
+
+            if not redirect_url:
+                print("\n❌ No URL provided — authorization cancelled.\n")
+                return None
+
+            # Extract the authorization code from the redirect URL
+            parsed = urllib.parse.urlparse(redirect_url)
+            params = urllib.parse.parse_qs(parsed.query)
+            code = params.get("code", [None])[0]
+
+            if not code:
+                # Maybe they pasted just the code
+                code = redirect_url
+
+            # Exchange the code for tokens
+            flow.fetch_token(code=code)
+            creds = flow.credentials
+
+            self._credentials = creds
+            self._save_credentials()
+
+            print(f"\n{'=' * 60}")
+            print("✅ Authorization successful!")
+            print(f"   Scopes: {', '.join(scopes)}")
+            print(f"   Token saved to: {self.token_path}")
+            print(f"{'=' * 60}\n")
+
+            logger.info("OAuth manual code flow completed successfully")
+            return creds
+        except ImportError:
+            logger.error("google-auth-oauthlib not installed")
+            print("\n❌ ERROR: google-auth-oauthlib is required for the desktop auth flow.")
+            print("   Install it with: pip install google-auth-oauthlib\n")
+            return None
+        except Exception as e:
+            logger.error(f"OAuth manual code flow failed: {e}")
+            print(f"\n❌ Authorization failed: {e}")
+            print("\n   Common issues:")
+            print("   - Pasted the wrong URL (make sure to copy the FULL redirect URL)")
+            print("   - Authorization was denied on the Google consent page")
+            print("   - The code expired (try again within 10 minutes)")
             print()
             return None
 

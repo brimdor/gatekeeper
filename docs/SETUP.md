@@ -166,9 +166,19 @@ gatekeeper auth
 
 Opens your browser automatically. Authorize Gatekeeper to access your Google data, then close the tab. Credentials are saved encrypted to `google_token.json`.
 
-### Device flow (headless/remote servers)
+### SSH / headless environments
 
-If you're running Gatekeeper on a server without a browser, use the device flow:
+If you're running Gatekeeper on a remote server over SSH (no display), `gatekeeper auth` automatically detects this and uses a manual code exchange:
+
+1. It prints a Google authorization URL
+2. Open that URL on **any device** (your laptop, phone, tablet)
+3. After authorizing, your browser redirects to `http://localhost?code=...` (the page won't load — that's expected)
+4. Copy the **full URL** from your browser's address bar
+5. Paste it into the terminal prompt
+
+### Device flow (alternative for headless servers)
+
+If you prefer the link+code flow (no redirect URL to paste):
 
 ```bash
 gatekeeper auth --flow device
@@ -179,7 +189,7 @@ gatekeeper auth --flow device
 3. Enter the code and authorize
 4. Credentials are saved encrypted to `google_token.json`
 
-> **Note**: The device flow requires an OAuth client of type **"TVs and Limited Input devices"** (not "Desktop app") in Google Cloud Console. If you get `Invalid client type`, use the desktop flow instead, or create a separate "TVs and Limited Input devices" client.
+> **Note**: The device flow requires an OAuth client of type **"TVs and Limited Input devices"** (not "Desktop app") in Google Cloud Console. If you get `Invalid client type`, use the default desktop flow instead, or create a separate "TVs and Limited Input devices" client.
 
 > **Troubleshooting**: If auth fails with 401, verify your Client ID and Client Secret are complete in `.env` (not truncated) and your email is a Test User on the OAuth consent screen.
 

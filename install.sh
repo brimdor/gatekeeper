@@ -341,6 +341,7 @@ run_auth() {
     printf "\n"
     printf "  Gatekeeper needs to authenticate with Google to access your data.\n"
     printf "  The default flow opens your browser for authorization.\n"
+    printf "  If you're on SSH, it will print a URL for you to open manually.\n"
     printf "\n"
 
     if [[ -z "${GOOGLE_CLIENT_ID:-}" ]] || [[ -z "${GOOGLE_CLIENT_SECRET:-}" ]]; then

@@ -92,15 +92,16 @@ nano .env
 
 Gatekeeper supports two OAuth authorization flows:
 
-#### Desktop Browser (recommended — local machine)
+#### Desktop Browser (recommended — works locally and over SSH)
 
 ```bash
 gatekeeper auth
 ```
 
-Opens your browser automatically. Authorize Gatekeeper, then close the tab. Works with OAuth client type "Desktop app" — the type most people create.
+- **On a machine with a display**: Opens your browser automatically. Authorize, close the tab, done.
+- **Over SSH / headless**: Prints a Google authorization URL. Open it on any device, authorize, then paste the redirect URL back into the terminal. Works seamlessly over SSH.
 
-#### Device Authorization (headless/remote servers)
+#### Device Authorization (alternative for headless servers)
 
 ```bash
 gatekeeper auth --flow device

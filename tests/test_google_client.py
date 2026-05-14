@@ -1,6 +1,7 @@
 """Tests for Google OAuth client and credential management."""
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -341,7 +342,7 @@ class TestDesktopAuthFlow:
             gatekeeper.google_client.settings = orig
 
     def test_desktop_auth_mock_success(self, tmp_path):
-        """Desktop auth flow should succeed with mocked InstalledAppFlow."""
+        """Desktop auth flow should succeed with mocked InstalledAppFlow on a display."""
         from google.oauth2.credentials import Credentials
 
         from gatekeeper.google_client import GoogleCredentialManager
@@ -380,10 +381,12 @@ class TestDesktopAuthFlow:
             google_auth_oauthlib.flow.InstalledAppFlow = mock_iapp
 
             try:
-                mgr = GoogleCredentialManager(token_path=token_path)
-                result = mgr.start_desktop_auth_flow(
-                    scopes=["https://www.googleapis.com/auth/drive.readonly"]
-                )
+                # Set DISPLAY to trigger the local server path
+                with patch.dict("os.environ", {"DISPLAY": ":0"}):
+                    mgr = GoogleCredentialManager(token_path=token_path)
+                    result = mgr.start_desktop_auth_flow(
+                        scopes=["https://www.googleapis.com/auth/drive.readonly"]
+                    )
             finally:
                 google_auth_oauthlib.flow.InstalledAppFlow = orig_class
 
@@ -429,15 +432,82 @@ class TestDesktopAuthFlow:
             orig_class = google_auth_oauthlib.flow.InstalledAppFlow
             google_auth_oauthlib.flow.InstalledAppFlow = mock_iapp
 
-            try:
+            # Need DISPLAY set for local server path
+            with patch.dict("os.environ", {"DISPLAY": ":0"}):
                 mgr = GoogleCredentialManager(token_path=token_path)
                 result = mgr.start_desktop_auth_flow()
-            finally:
-                google_auth_oauthlib.flow.InstalledAppFlow = orig_class
 
             assert result is None
         finally:
+            google_auth_oauthlib.flow.InstalledAppFlow = orig_class
             gatekeeper.google_client.settings = orig
+
+    def test_desktop_auth_manual_code_flow(self, tmp_path):
+        """Desktop auth on headless (no DISPLAY) should use manual code exchange."""
+        from google.oauth2.credentials import Credentials
+
+        from gatekeeper.google_client import GoogleCredentialManager
+
+        settings = _make_settings(tmp_path)
+        token_path = Path(settings.google_token_file)
+
+        import gatekeeper.encryption
+        import gatekeeper.google_client
+
+        orig = gatekeeper.google_client.settings
+        orig_enc = gatekeeper.encryption.settings
+        gatekeeper.google_client.settings = settings
+        gatekeeper.encryption.settings = settings
+
+        try:
+            mock_creds = Credentials(
+                token="test-access-token-manual",
+                refresh_token="test-refresh-token-manual",
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id="test-client-id",
+                client_secret="test-client-secret",
+                scopes=["https://www.googleapis.com/auth/drive.readonly"],
+            )
+
+            mock_flow = MagicMock()
+            mock_flow.authorization_url.return_value = ("https://accounts.google.com/o/oauth2/auth?fake=1", None)
+            mock_flow.credentials = mock_creds
+            mock_flow.fetch_token.return_value = None
+            mock_flow.redirect_uri = None
+
+            mock_iapp = MagicMock()
+            mock_iapp.from_client_config.return_value = mock_flow
+
+            import google_auth_oauthlib.flow
+            orig_class = google_auth_oauthlib.flow.InstalledAppFlow
+            google_auth_oauthlib.flow.InstalledAppFlow = mock_iapp
+
+            # Mock input() to return a redirect URL with a code
+            redirect_url_with_code = "http://localhost?code=test-auth-code&scope=drive.readonly"
+
+            try:
+                # No DISPLAY = manual code flow
+                with patch.dict("os.environ", {}, clear=True):
+                    # Remove DISPLAY and WAYLAND_DISPLAY to trigger manual flow
+                    for key in ["DISPLAY", "WAYLAND_DISPLAY"]:
+                        os.environ.pop(key, None)
+                    with patch("builtins.input", return_value=redirect_url_with_code):
+                        mgr = GoogleCredentialManager(token_path=token_path)
+                        result = mgr.start_desktop_auth_flow(
+                            scopes=["https://www.googleapis.com/auth/drive.readonly"]
+                        )
+            finally:
+                google_auth_oauthlib.flow.InstalledAppFlow = orig_class
+
+            assert result is not None
+            assert result.token == "test-access-token-manual"
+            assert result.refresh_token == "test-refresh-token-manual"
+
+            # Token file should exist (encrypted)
+            assert token_path.exists()
+        finally:
+            gatekeeper.google_client.settings = orig
+            gatekeeper.encryption.settings = orig_enc
 
 
 class TestStartAuthFlow:
