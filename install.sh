@@ -27,13 +27,28 @@ success() { printf "${GREEN}[OK]${NC} %s\n" "$*"; }
 prompt()  { printf "${CYAN}[?]${NC} %s " "$*"; }
 
 # Read from terminal even when piped (curl ... | bash)
-tty_read()    { read -r "$1" < /dev/tty; }
-tty_read_s()  { read -rs "$1" < /dev/tty; printf "\n"; }
+# IFS= preserves leading/trailing whitespace, -r preserves backslashes
+tty_read()    { local IFS=''; read -r "$1" < /dev/tty; }
+tty_read_s()  {
+    # Read sensitive input with echo disabled.
+    # We use stty instead of read -s because read -s can mangle
+    # special characters like !, $, backticks, and backslashes.
+    local saved_tty
+    saved_tty=$(stty -g < /dev/tty)
+    trap 'stty "$saved_tty" < /dev/tty 2>/dev/null' EXIT
+    stty -echo -icanon < /dev/tty
+    local IFS=''
+    read -r "$1" < /dev/tty
+    stty "$saved_tty" < /dev/tty
+    trap - EXIT
+    printf "\n"
+}
 tty_ask_yn()  {
     local default="${2:-n}"
     local answer
     while true; do
         printf "${CYAN}[?]${NC} %s [%s] " "$1" "$(if [[ "$default" == "y" ]]; then echo "Y/n"; else echo "y/N"; fi)"
+        local IFS=''
         read -r answer < /dev/tty || answer=""
         answer="${answer,,}"
         [[ -z "$answer" ]] && answer="$default"
