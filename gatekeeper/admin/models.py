@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
-from pydantic import BaseModel, model_serializer
+from pydantic import BaseModel
 
 
 class ApiKeyCreate(BaseModel):
@@ -18,23 +16,8 @@ class ApiKeyResponse(BaseModel):
     key_prefix: str
     is_active: bool
     permissions: str
-    created_at: datetime | None = None
-    last_used_at: datetime | None = None
-
-    @model_serializer(mode="plain")
-    def _serialize_datetimes(self) -> dict:
-        """Convert UTC datetimes to display timezone before serialization."""
-        from gatekeeper.format import format_dt
-
-        return {
-            "id": self.id,
-            "name": self.name,
-            "key_prefix": self.key_prefix,
-            "is_active": self.is_active,
-            "permissions": self.permissions,
-            "created_at": format_dt(self.created_at),
-            "last_used_at": format_dt(self.last_used_at),
-        }
+    created_at: str | None = None
+    last_used_at: str | None = None
 
 
 class ApiKeyCreated(BaseModel):
@@ -68,24 +51,7 @@ class AuditLogResponse(BaseModel):
     path: str
     status_code: int
     response_summary: str | None = None
-    created_at: datetime | None = None
-
-    @model_serializer(mode="plain")
-    def _serialize_datetimes(self) -> dict:
-        """Convert UTC datetimes to display timezone before serialization."""
-        from gatekeeper.format import format_dt
-
-        return {
-            "id": self.id,
-            "api_key_prefix": self.api_key_prefix,
-            "module": self.module,
-            "route": self.route,
-            "method": self.method,
-            "path": self.path,
-            "status_code": self.status_code,
-            "response_summary": self.response_summary,
-            "created_at": format_dt(self.created_at),
-        }
+    created_at: str | None = None
 
 
 class AuthStatus(BaseModel):

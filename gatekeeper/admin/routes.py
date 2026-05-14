@@ -56,6 +56,8 @@ def create_admin_router() -> APIRouter:
     @router.get("/keys", response_model=list[ApiKeyResponse])
     async def list_keys(admin=Depends(require_admin)):
         """List all API keys."""
+        from gatekeeper.format import format_dt
+
         async with async_session() as session:
             result = await session.execute(select(ApiKey))
             keys = result.scalars().all()
@@ -66,8 +68,8 @@ def create_admin_router() -> APIRouter:
                     key_prefix=k.key_prefix,
                     is_active=k.is_active,
                     permissions=k.permissions,
-                    created_at=k.created_at,
-                    last_used_at=k.last_used_at,
+                    created_at=format_dt(k.created_at),
+                    last_used_at=format_dt(k.last_used_at),
                 )
                 for k in keys
             ]
@@ -205,6 +207,8 @@ def create_admin_router() -> APIRouter:
         admin=Depends(require_admin),
     ):
         """Get audit log entries with optional filters."""
+        from gatekeeper.format import format_dt
+
         async with async_session() as session:
             query = select(AuditLog).order_by(AuditLog.created_at.desc())
 
@@ -226,7 +230,7 @@ def create_admin_router() -> APIRouter:
                     path=e.path,
                     status_code=e.status_code,
                     response_summary=e.response_summary,
-                    created_at=e.created_at,
+                    created_at=format_dt(e.created_at),
                 )
                 for e in entries
             ]
