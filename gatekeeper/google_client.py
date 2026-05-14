@@ -198,6 +198,7 @@ class GoogleCredentialManager:
                     GOOGLE_DEVICE_CODE_URL,
                     data={
                         "client_id": settings.google_client_id,
+                        "client_secret": settings.google_client_secret,
                         "scope": " ".join(scopes),
                     },
                 )
