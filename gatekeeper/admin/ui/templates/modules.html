@@ -2,9 +2,9 @@
 {% block title %}Modules — Gatekeeper{% endblock %}
 {% set page = "modules" %}
 {% block content %}
-<div class="mb-8">
+<div class="mb-6">
     <h2 class="text-2xl font-bold text-white">Modules</h2>
-    <p class="text-gray-400 mt-1">Enable or disable Google API modules and their individual endpoints for fine-grained access control.</p>
+    <p class="text-gray-400 mt-1 text-sm sm:text-base">Enable or disable Google API modules and their individual endpoints for fine-grained access control.</p>
 </div>
 <div id="modules-container" class="text-gray-500">
     <p>Loading modules...</p>
@@ -41,43 +41,43 @@ async function loadModules() {
         html += `
         <div class="bg-gray-800 rounded-lg border ${m.enabled ? 'border-green-700/50' : 'border-gray-700'} overflow-hidden">
             <!-- Module header -->
-            <div class="flex items-center justify-between p-5 border-b border-gray-700/50">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 border-b border-gray-700/50 gap-3">
                 <div class="flex items-center gap-3">
                     <span class="text-3xl">${m.icon}</span>
-                    <div>
+                    <div class="min-w-0">
                         <h3 class="text-lg font-semibold text-white">${m.display_name}</h3>
                         <p class="text-sm text-gray-400">${m.description}</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 flex-shrink-0">
                     <span class="text-xs text-gray-500">${enabledCount}/${moduleRoutes.length} routes active</span>
                     <button onclick="toggleModule('${m.name}')"
-                        class="px-4 py-2 text-sm rounded font-medium ${m.enabled ? 'bg-red-700 hover:bg-red-600' : 'bg-green-700 hover:bg-green-600'} text-white transition-colors">
+                        class="px-4 py-2 text-sm rounded font-medium min-h-[44px] ${m.enabled ? 'bg-red-700 hover:bg-red-600' : 'bg-green-700 hover:bg-green-600'} text-white transition-colors">
                         ${m.enabled ? 'Disable Module' : 'Enable Module'}
                     </button>
                 </div>
             </div>
 
             <!-- Scopes -->
-            <div class="px-5 py-3 border-b border-gray-700/30 bg-gray-800/50">
+            <div class="px-4 sm:px-5 py-3 border-b border-gray-700/30 bg-gray-800/50 overflow-x-auto">
                 <p class="text-xs text-gray-500 mb-1">OAuth scopes:</p>
                 <div class="flex flex-wrap gap-1.5">
-                    ${m.scopes.map(s => `<span class="inline-block text-xs bg-gray-700/80 rounded px-2 py-0.5 text-gray-300 font-mono">${s.replace('https://www.googleapis.com/auth/', '')}</span>`).join('')}
+                    ${m.scopes.map(s => `<span class="inline-block text-xs bg-gray-700/80 rounded px-2 py-0.5 text-gray-300 font-mono whitespace-nowrap">${s.replace('https://www.googleapis.com/auth/', '')}</span>`).join('')}
                 </div>
             </div>
 
             <!-- Routes -->
             <div class="divide-y divide-gray-700/30">
                 ${moduleRoutes.map(r => `
-                <div class="flex items-center justify-between px-5 py-3 hover:bg-gray-700/30 transition-colors">
-                    <div class="flex-1 min-w-0">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-5 py-3 hover:bg-gray-700/30 transition-colors gap-2">
+                    <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-2">
-                            <code class="text-sm ${r.enabled ? 'text-blue-300' : 'text-gray-500'}">${r.route}</code>
+                            <code class="text-sm ${r.enabled ? 'text-blue-300' : 'text-gray-500'} break-all">${r.route}</code>
                         </div>
                         <p class="text-xs text-gray-500 mt-0.5">${r.description || ''}</p>
                     </div>
                     <button onclick="toggleRoute(${r.id}, ${!r.enabled})"
-                        class="ml-4 px-3 py-1 text-xs rounded font-medium ${r.enabled ? 'bg-green-800/80 text-green-300 hover:bg-green-700' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'} transition-colors">
+                        class="flex-shrink-0 px-3 py-1.5 text-xs rounded font-medium min-h-[36px] sm:min-h-[32px] ${r.enabled ? 'bg-green-800/80 text-green-300 hover:bg-green-700' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'} transition-colors">
                         ${r.enabled ? '✅ On' : '❌ Off'}
                     </button>
                 </div>

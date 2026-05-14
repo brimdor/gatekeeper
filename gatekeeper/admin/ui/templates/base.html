@@ -1,14 +1,89 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="theme-color" content="#1f2937">
     <title>{% block title %}Gatekeeper{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .htmx-indicator { display: none; }
         .htmx-request .htmx-indicator { display: inline-block; }
         .htmx-request.htmx-indicator { display: inline-block; }
+
+        /* Mobile table card layout */
+        @media (max-width: 640px) {
+            .mobile-table thead { display: none; }
+            .mobile-table, .mobile-table tbody, .mobile-table tr, .mobile-table td {
+                display: block;
+                width: 100%;
+            }
+            .mobile-table tr {
+                padding: 12px 0;
+                border-bottom: 1px solid rgba(55, 65, 81, 0.5);
+            }
+            .mobile-table td {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 4px 0 !important;
+                text-align: left;
+            }
+            .mobile-table td::before {
+                content: attr(data-label);
+                font-weight: 600;
+                font-size: 0.75rem;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: #9ca3af;
+                min-width: 80px;
+                flex-shrink: 0;
+                margin-right: 8px;
+            }
+            .mobile-table td[data-label=""]::before,
+            .mobile-table td.no-label::before {
+                display: none;
+            }
+            .mobile-table td.actions-cell {
+                flex-wrap: wrap;
+                justify-content: flex-start;
+                padding-top: 8px;
+                margin-top: 4px;
+                border-top: 1px solid rgba(55, 65, 81, 0.3);
+            }
+            .mobile-table td.actions-cell::before {
+                display: none;
+            }
+        }
+
+        /* Off-canvas sidebar overlay */
+        .nav-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .nav-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* No body scroll when sidebar open on mobile */
+        body.sidebar-open {
+            overflow: hidden;
+        }
+
+        /* Touch target sizing */
+        @media (max-width: 640px) {
+            .touch-target {
+                min-height: 44px;
+                min-width: 44px;
+            }
+        }
     </style>
     <!-- Core auth/utility JS — must load BEFORE page content scripts -->
     <script>
@@ -84,6 +159,21 @@
         document.getElementById('login-password').value = '';
     }
 
+    // Sidebar toggle for mobile
+    function openNav() {
+        document.getElementById('sidebar').classList.add('translate-x-0');
+        document.getElementById('sidebar').classList.remove('-translate-x-full');
+        document.getElementById('nav-overlay').classList.add('visible');
+        document.body.classList.add('sidebar-open');
+    }
+    function closeNav() {
+        document.getElementById('sidebar').classList.remove('translate-x-0');
+        document.getElementById('sidebar').classList.add('-translate-x-full');
+        document.getElementById('nav-overlay').classList.remove('visible');
+        document.body.classList.remove('sidebar-open');
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNav(); });
+
     // Start hidden until auth is confirmed
     document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('app-content').style.display = 'none';
@@ -91,64 +181,76 @@
     </script>
     {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-gray-900 text-gray-200 min-h-full">
+<body class="bg-gray-900 text-gray-200 min-h-[100dvh]">
     <!-- Login overlay -->
-    <div id="login-overlay" class="fixed inset-0 bg-gray-900 z-50 flex items-center justify-center" style="display:none;">
-        <div class="bg-gray-800 rounded-lg p-8 border border-gray-700 w-96">
+    <div id="login-overlay" class="fixed inset-0 bg-gray-900 z-50 flex items-center justify-center p-4" style="display:none;">
+        <div class="bg-gray-800 rounded-lg p-6 sm:p-8 border border-gray-700 w-full max-w-sm">
             <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <span class="text-2xl">🔐</span> Gatekeeper Login
             </h2>
             <div id="login-error" class="text-red-400 text-sm mb-3" style="display:none;"></div>
             <div class="mb-4">
                 <label class="block text-sm text-gray-400 mb-1">Password</label>
-                <input type="password" id="login-password" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')doLogin()">
+                <input type="password" id="login-password" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-3 text-white text-base focus:outline-none focus:border-blue-500 min-h-[48px]" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')doLogin()">
             </div>
-            <button onclick="doLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded font-medium transition-colors">Sign In</button>
+            <button onclick="doLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded font-medium transition-colors min-h-[48px]">Sign In</button>
             <p class="text-xs text-gray-500 mt-3">Default username: admin</p>
         </div>
     </div>
 
-    <div id="app-content" class="flex h-screen">
-        <!-- Sidebar -->
-        <aside class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
-            <div class="p-4 border-b border-gray-700">
+    <!-- Navigation overlay (mobile) -->
+    <div id="nav-overlay" class="nav-overlay lg:hidden" onclick="closeNav()"></div>
+
+    <div id="app-content" class="flex min-h-[100dvh]">
+        <!-- Sidebar — off-canvas on mobile, persistent on lg+ -->
+        <aside id="sidebar" class="fixed lg:relative z-50 lg:z-auto w-[280px] max-w-[85vw] lg:max-w-none bg-gray-800 border-r border-gray-700 flex flex-col h-full min-h-[100dvh] transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+            <div class="p-4 border-b border-gray-700 flex items-center justify-between">
                 <h1 class="text-xl font-bold text-white flex items-center gap-2">
                     <span class="text-2xl">🔐</span> Gatekeeper
                 </h1>
-                <p class="text-xs text-gray-400 mt-1">Google Workspace Policy Gateway</p>
+                <button onclick="closeNav()" class="lg:hidden p-2 rounded-lg hover:bg-gray-700 text-gray-400 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Close navigation">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="4" x2="16" y2="16"/><line x1="16" y1="4" x2="4" y2="16"/></svg>
+                </button>
             </div>
+            <p class="px-4 pt-2 text-xs text-gray-400 hidden lg:block">Google Workspace Policy Gateway</p>
             <nav class="flex-1 p-2 space-y-1">
-                <a href="/admin/" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {% if page == 'dashboard' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
+                <a href="/admin/" onclick="closeNav()" class="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm min-h-[44px] {% if page == 'dashboard' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
                     <span>📊</span> Dashboard
                 </a>
-                <a href="/admin/modules" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {% if page == 'modules' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
+                <a href="/admin/modules" onclick="closeNav()" class="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm min-h-[44px] {% if page == 'modules' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
                     <span>📦</span> Modules
                 </a>
-
-                <a href="/admin/keys" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {% if page == 'keys' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
+                <a href="/admin/keys" onclick="closeNav()" class="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm min-h-[44px] {% if page == 'keys' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
                     <span>🔑</span> API Keys
                 </a>
-                <a href="/admin/audit" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {% if page == 'audit' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
+                <a href="/admin/audit" onclick="closeNav()" class="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm min-h-[44px] {% if page == 'audit' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
                     <span>📋</span> Audit Log
                 </a>
-                <a href="/admin/auth" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {% if page == 'auth' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
+                <a href="/admin/auth" onclick="closeNav()" class="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm min-h-[44px] {% if page == 'auth' %}bg-gray-700 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
                     <span>🔗</span> Auth Status
                 </a>
             </nav>
             <!-- Sign out button -->
             <div class="p-2 border-t border-gray-700">
-                <button onclick="doLogout()" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-700 hover:text-red-400 w-full transition-colors">
+                <button onclick="doLogout()" class="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-gray-700 hover:text-red-400 w-full transition-colors min-h-[44px]">
                     <span>🚪</span> Sign Out
                 </button>
             </div>
-            <div class="px-4 pb-3">
+            <div class="px-4 pb-3 hidden lg:block">
                 <p class="text-xs text-gray-500">Gatekeeper v{{ version }}</p>
             </div>
         </aside>
 
         <!-- Main content -->
-        <main class="flex-1 overflow-y-auto">
-            <div class="p-8">
+        <main class="flex-1 min-w-0 overflow-y-auto">
+            <!-- Mobile top bar with hamburger -->
+            <div class="lg:hidden sticky top-0 z-30 bg-gray-800 border-b border-gray-700 px-4 py-3 flex items-center gap-3">
+                <button onclick="openNav()" class="p-2 rounded-lg hover:bg-gray-700 text-gray-300 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Open navigation">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <h1 class="text-lg font-bold text-white">🔐 Gatekeeper</h1>
+            </div>
+            <div class="p-4 sm:p-6 lg:p-8">
                 {% block content %}{% endblock %}
             </div>
         </main>
