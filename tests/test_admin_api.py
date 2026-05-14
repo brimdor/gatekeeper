@@ -100,6 +100,42 @@ class TestModuleStatus:
             assert "route_count" in mod
             assert "scopes" in mod
 
+    async def test_module_toggle_persists_to_db(self, client, admin_headers):
+        """POST /admin/api/modules/{name}/toggle persists the change to route policies in the DB.
+
+        Toggling a module OFF should disable all its routes in the DB,
+        and toggling it ON should re-enable them — without a server restart.
+        """
+        # Toggle the module OFF
+        response = await client.post(
+            "/admin/api/modules/gmail/toggle",
+            headers=admin_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["module"] == "gmail"
+        assert data["enabled"] is False
+        assert data["routes_toggled"] > 0
+
+        # Verify all gmail routes are now disabled in the DB
+        routes_after_off = await client.get("/admin/api/routes?module=gmail", headers=admin_headers)
+        for route in routes_after_off.json():
+            assert route["enabled"] is False, f"Route {route['route']} should be disabled"
+
+        # Toggle the module back ON
+        response = await client.post(
+            "/admin/api/modules/gmail/toggle",
+            headers=admin_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["enabled"] is True
+
+        # Verify all gmail routes are re-enabled
+        routes_after_on = await client.get("/admin/api/routes?module=gmail", headers=admin_headers)
+        for route in routes_after_on.json():
+            assert route["enabled"] is True, f"Route {route['route']} should be enabled"
+
 
 @pytest.mark.asyncio
 class TestRoutePolicies:
@@ -179,6 +215,41 @@ class TestRoutePolicies:
         assert response.status_code == 200
         data = response.json()
         assert data["enabled"] is True
+
+    async def test_route_toggle_takes_effect_immediately(self, client, admin_headers):
+        """Route toggle via PATCH takes effect immediately in the DB.
+
+        When an admin disables a route, subsequent requests should see
+        the change without a server restart.
+        """
+        # Get gmail.messages.list route
+        routes_resp = await client.get("/admin/api/routes?module=gmail", headers=admin_headers)
+        gmail_routes = routes_resp.json()
+        msg_list = [r for r in gmail_routes if r["route"] == "gmail.messages.list"][0]
+
+        # Disable it
+        await client.patch(
+            f"/admin/api/routes/{msg_list['id']}",
+            json={"enabled": False},
+            headers=admin_headers,
+        )
+
+        # Verify it's disabled in the routes list
+        routes_resp2 = await client.get("/admin/api/routes?module=gmail", headers=admin_headers)
+        msg_list2 = [r for r in routes_resp2.json() if r["route"] == "gmail.messages.list"][0]
+        assert msg_list2["enabled"] is False
+
+        # Re-enable it
+        await client.patch(
+            f"/admin/api/routes/{msg_list['id']}",
+            json={"enabled": True},
+            headers=admin_headers,
+        )
+
+        # Verify it's enabled again
+        routes_resp3 = await client.get("/admin/api/routes?module=gmail", headers=admin_headers)
+        msg_list3 = [r for r in routes_resp3.json() if r["route"] == "gmail.messages.list"][0]
+        assert msg_list3["enabled"] is True
 
     async def test_update_route_config(self, client, admin_headers):
         """PATCH /admin/api/routes/{id} updates policy config."""

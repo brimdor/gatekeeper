@@ -1,4 +1,14 @@
-"""Dynamic FastAPI router mounting module sub-routers."""
+"""Dynamic FastAPI router mounting module sub-routers.
+
+All module routes are always registered at startup. Route enable/disable is
+controlled dynamically through the policy engine (RoutePolicy table in the DB),
+not by which modules are "mounted". This means toggling a route in the admin UI
+takes effect immediately without a server restart.
+
+The settings.DRIVE_ENABLED / settings.GMAIL_ENABLED / settings.CALENDAR_ENABLED
+flags control which Google OAuth scopes are requested during authentication —
+they do NOT control which REST API routes exist.
+"""
 
 from __future__ import annotations
 
@@ -8,37 +18,29 @@ from fastapi import APIRouter, Depends, Request
 
 from gatekeeper.api.proxy import GoogleProxy
 from gatekeeper.auth import validate_api_key
-from gatekeeper.config import settings
 from gatekeeper.models import ApiKey
-from gatekeeper.modules import load_enabled_modules
+from gatekeeper.modules import AVAILABLE_MODULES, load_module
 
 logger = logging.getLogger(__name__)
 
 
 def create_api_router() -> APIRouter:
-    """Create the main API router, mounting module sub-routers for all enabled modules."""
+    """Create the main API router, mounting module sub-routers for ALL modules.
+
+    All routes are always registered. Enable/disable is handled dynamically
+    by the policy engine checking the RoutePolicy table in the DB on each
+    request — so admin toggles take effect immediately without a restart.
+    """
     router = APIRouter(prefix="/api/v1")
 
-    # Load enabled modules
-    enabled = []
-    if settings.drive_enabled:
-        enabled.append("drive")
-    if settings.gmail_enabled:
-        enabled.append("gmail")
-    if settings.calendar_enabled:
-        enabled.append("calendar")
+    for module_name in AVAILABLE_MODULES:
+        mod = load_module(module_name)
+        if mod is None:
+            continue
 
-    # If no modules explicitly enabled, don't mount any routes
-    if not enabled:
-        logger.info("No modules enabled — API router will have no routes")
-        return router
+        sub_router = APIRouter(prefix=f"/{mod.name}", tags=[mod.display_name])
 
-    modules = load_enabled_modules(enabled)
-
-    for module in modules:
-        sub_router = APIRouter(prefix=f"/{module.name}", tags=[module.display_name])
-
-        for route in module.get_routes():
+        for route in mod.get_routes():
             # Convert route_id to URL path (e.g., "gmail.messages.list" -> "/messages/list")
             parts = route.route_id.split(".", 1)
             if len(parts) > 1:
@@ -49,7 +51,7 @@ def create_api_router() -> APIRouter:
             # Create the endpoint function dynamically
             _make_endpoint(
                 sub_router,
-                module.name,
+                mod.name,
                 route.route_id,
                 path,
                 route.method,
@@ -57,7 +59,7 @@ def create_api_router() -> APIRouter:
             )
 
         router.include_router(sub_router)
-        logger.info(f"Mounted API routes for module: {module.name}")
+        logger.info(f"Mounted API routes for module: {mod.name}")
 
     return router
 

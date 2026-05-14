@@ -136,18 +136,49 @@ def create_admin_router() -> APIRouter:
 
     @router.post("/modules/{module_name}/toggle")
     async def toggle_module(module_name: str, admin=Depends(require_admin)):
-        """Toggle a module on or off."""
+        """Toggle a module on or off.
+
+        Updates both the in-memory settings and the route policies in the DB,
+        so the change takes effect immediately without a server restart.
+        """
         from gatekeeper.modules import load_module
 
         mod = load_module(module_name)
         if not mod:
             raise HTTPException(status_code=404, detail=f"Module {module_name} not found")
 
-        # Toggle the setting
-        current = getattr(settings, f"{module_name}_enabled", False)
-        setattr(settings, f"{module_name}_enabled", not current)
-        new_status = not current
-        return {"module": module_name, "enabled": new_status}
+        # Check current state from settings (the canonical source for module enable/disable)
+        current = getattr(settings, f"{module_name}_enabled", True)
+
+        # Also check DB state — count enabled routes for this module
+        async with async_session() as session:
+            result = await session.execute(
+                select(RoutePolicy).where(RoutePolicy.module == module_name)
+            )
+            policies = result.scalars().all()
+
+            if not policies:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No route policies found for module {module_name}",
+                )
+
+            new_status = not current
+
+            # Toggle all route policies for this module
+            for policy in policies:
+                policy.enabled = new_status
+
+            await session.commit()
+
+        # Also update in-memory settings for OAuth scope calculation
+        setattr(settings, f"{module_name}_enabled", new_status)
+
+        return {
+            "module": module_name,
+            "enabled": new_status,
+            "routes_toggled": len(policies),
+        }
 
     @router.get("/routes", response_model=list[RoutePolicyResponse])
     async def list_routes(module: str | None = None, admin=Depends(require_admin)):
