@@ -1,5 +1,5 @@
-"""Google OAuth credential management — device auth flow
-and desktop flow with encrypted token storage."""
+"""Google OAuth credential management — desktop auth flow
+(redirect-based) and device flow (headless), with encrypted token storage."""
 
 from __future__ import annotations
 
@@ -28,11 +28,11 @@ class GoogleCredentialManager:
     """Manages Google OAuth2 credentials — load, refresh, and store tokens.
 
     Supports two auth flows:
-    1. Device authorization flow (default) — user visits a URL and enters a code.
-       Works from any device, no local browser needed. Ideal for headless servers
-       and remote setups.
-    2. Desktop app flow — opens a browser on the local machine, captures the
-       redirect automatically. Better UX when running locally.
+    1. Desktop app flow (default) — opens a browser on the local machine,
+       captures the redirect automatically. Recommended for all local setups.
+    2. Device authorization flow — user visits a URL and enters a code.
+       For headless servers. Requires an OAuth client of type
+       "TVs and Limited Input devices" (not "Desktop app").
     """
 
     def __init__(self, token_path: Path | None = None):
@@ -159,15 +159,13 @@ class GoogleCredentialManager:
     def start_device_auth_flow(self, scopes: list[str] | None = None) -> Credentials | None:
         """Run the Google Device Authorization flow (link + code).
 
-        This is the recommended flow for headless servers and remote setups.
-        The user visits a URL on any device and enters a code — no local browser
-        or redirect needed.
+        This flow is for headless/remote setups where no browser is available
+        on the machine running Gatekeeper. The user visits a URL on any device
+        and enters a code.
 
-        Steps:
-        1. POST to Google's device code endpoint → get user_code + verification_url
-        2. Display the URL and code to the user
-        3. Poll the token endpoint until the user authorizes
-        4. Exchange for tokens and save encrypted credentials
+        IMPORTANT: This flow requires the OAuth client to be of type
+        "TVs and Limited Input devices" (NOT "Desktop app"). Google's
+        "Desktop app" clients get "Invalid client type" from this endpoint.
 
         Args:
             scopes: OAuth scopes to request. Defaults to all enabled module scopes.
@@ -219,17 +217,16 @@ class GoogleCredentialManager:
                     print(f"   Google responded: {error_detail}")
                     # Provide actionable hints
                     if response.status_code == 401:
-                        print("\n   Common causes of 401 Unauthorized:")
-                        print("   1. OAuth client is NOT a 'Desktop app'")
-                        print("      → Google Console → Credentials → check type")
-                        print("      → Web application clients don't support device flow")
-                        print("      → You must DELETE and recreate as 'Desktop app'")
-                        print("         (type cannot be changed after creation)")
-                        print("   2. OAuth consent screen not configured:")
-                        print("      → https://console.cloud.google.com/apis/credentials/consent")
-                        print("      → Set Publishing status to 'Testing'")
-                        print("      → Add your Google email as a Test User")
-                        print("   3. Client ID is incorrect or truncated")
+                        print("\n   The device flow requires an OAuth client of type")
+                        print("   'TVs and Limited Input devices' — NOT 'Desktop app'.")
+                        print("")
+                        print("   Recommended: use the desktop flow instead, which works")
+                        print("   with 'Desktop app' clients:")
+                        print("     gatekeeper auth")
+                        print("")
+                        print("   If you need the device flow (headless servers), create")
+                        print("   a separate OAuth client of type 'TVs and Limited Input")
+                        print("   devices' in Google Cloud Console → Credentials.")
                     return None
                 device_data = response.json()
         except httpx.HTTPError as e:
@@ -324,9 +321,13 @@ class GoogleCredentialManager:
     def start_desktop_auth_flow(self, scopes: list[str] | None = None) -> Credentials | None:
         """Run the desktop OAuth flow (opens browser on local machine).
 
-        This is the traditional OAuth flow — starts a local HTTP server,
-        opens the browser, captures the redirect, and exchanges the code.
-        Use this when running Gatekeeper on the same machine as your browser.
+        This is the recommended auth flow for Gatekeeper. It starts a local
+        HTTP server, opens the browser, captures the redirect, and exchanges
+        the authorization code for tokens. Works with Google OAuth clients
+        of type "Desktop app".
+
+        Falls back to printing the URL if opening the browser fails (e.g.,
+        headless environments), so the user can open it manually.
 
         Args:
             scopes: OAuth scopes to request. Defaults to all enabled module scopes.
@@ -362,38 +363,59 @@ class GoogleCredentialManager:
             }
         }
 
+        print(f"\n{'=' * 60}")
+        print("🌐 Google Account Authorization (Desktop Flow)")
+        print(f"{'=' * 60}")
+        print("\n  A browser window will open for you to authorize Gatekeeper.")
+        print("  If the browser doesn't open, the URL will be printed below.\n")
+        logger.info("Starting desktop OAuth flow for scopes: %s", scopes)
+
         try:
             flow = InstalledAppFlow.from_client_config(client_config, scopes=scopes)
+            # run_local_server: port=0 = pick any free port
+            # open_browser=True attempts to open the default browser
             creds = flow.run_local_server(port=0, open_browser=True)
 
             self._credentials = creds
             self._save_credentials()
 
-            print(f"\n{'=' * 60}")
-            print("✅ Authorization successful (desktop flow)!")
+            print(f"{'=' * 60}")
+            print("✅ Authorization successful!")
             print(f"   Scopes: {', '.join(scopes)}")
             print(f"   Token saved to: {self.token_path}")
             print(f"{'=' * 60}\n")
 
             logger.info("OAuth desktop flow completed successfully")
             return creds
+        except ImportError:
+            logger.error("google-auth-oauthlib not installed")
+            print("\n❌ ERROR: google-auth-oauthlib is required for the desktop auth flow.")
+            print("   Install it with: pip install google-auth-oauthlib\n")
+            return None
         except Exception as e:
             logger.error(f"OAuth desktop flow failed: {e}")
-            print(f"\n❌ OAuth flow failed: {e}\n")
+            print(f"\n❌ Authorization failed: {e}")
+            print("\n   If the browser didn't open, try running on a machine with a")
+            print("   display, or use the device flow:")
+            print("     gatekeeper auth --flow device")
+            print()
             return None
 
     def start_auth_flow(
         self,
-        flow: str = "device",
+        flow: str = "desktop",
         scopes: list[str] | None = None,
     ) -> Credentials | None:
         """Run an OAuth authorization flow.
 
         Args:
             flow: Authorization flow to use.
-                - "device" (default): Device Authorization flow — user visits a URL
-                  and enters a code. Works from any device, no local browser needed.
-                - "desktop": Opens browser on local machine, captures redirect automatically.
+                - "desktop" (default): Opens browser on local machine,
+                  captures redirect. Recommended. Works with "Desktop app"
+                  OAuth clients.
+                - "device": Device Authorization flow — user visits a URL and
+                  enters a code. For headless/remote setups. Requires OAuth
+                  client type "TVs and Limited Input devices".
             scopes: OAuth scopes to request. Defaults to all enabled module scopes.
 
         Returns:

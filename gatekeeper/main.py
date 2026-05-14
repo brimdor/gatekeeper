@@ -191,11 +191,11 @@ def cli():
     auth_parser = subparsers.add_parser("auth", help="Run the Google OAuth authorization flow")
     auth_parser.add_argument(
         "--flow",
-        choices=["device", "desktop"],
-        default="device",
+        choices=["desktop", "device"],
+        default="desktop",
         help=(
-            "Auth flow: 'device' (link + code, works anywhere)"
-            " or 'desktop' (opens browser locally). Default: device"
+            "Auth flow: 'desktop' (opens browser locally, recommended)"
+            " or 'device' (link + code for headless/remote). Default: desktop"
         ),
     )
 
@@ -263,15 +263,17 @@ async def _cli_init():
     print("✅ Database initialized and default policies seeded.")
 
 
-async def _cli_auth(flow: str = "device"):
+async def _cli_auth(flow: str = "desktop"):
     """Run the Google OAuth authorization flow."""
     from gatekeeper.google_client import credential_manager
 
     if flow == "desktop":
-        print("🌐 Opening browser for Google OAuth authorization (desktop flow)...")
+        print("🌐 Opening browser for Google OAuth authorization...")
+        print("   A browser window will open. Authorize Gatekeeper to access your data.")
     else:
-        print("🔐 Starting Google Device Authorization flow (link + code)...")
+        print("🔐 Starting Google authorization flow (headless/remote)...")
         print("   You'll open a URL and enter a code on any device.")
+        print("   (Use 'gatekeeper auth --flow desktop' for browser-based auth)")
     print("   Scopes will be requested based on enabled modules.")
     print(
         f"   Drive: {settings.drive_enabled},"

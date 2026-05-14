@@ -340,8 +340,7 @@ run_auth() {
     printf "${BOLD}  Step 4: Google Authorization${NC}\n"
     printf "\n"
     printf "  Gatekeeper needs to authenticate with Google to access your data.\n"
-    printf "  The device flow works on any machine — you'll get a URL and code to\n"
-    printf "  enter on your phone or another device.\n"
+    printf "  The default flow opens your browser for authorization.\n"
     printf "\n"
 
     if [[ -z "${GOOGLE_CLIENT_ID:-}" ]] || [[ -z "${GOOGLE_CLIENT_SECRET:-}" ]]; then

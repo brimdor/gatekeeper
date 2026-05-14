@@ -158,10 +158,20 @@ Expected output:
 
 ## Step 5 — Authorize with Google
 
-### Device flow (recommended — works on headless servers)
+### Desktop flow (recommended — local machine with browser)
 
 ```bash
 gatekeeper auth
+```
+
+Opens your browser automatically. Authorize Gatekeeper to access your Google data, then close the tab. Credentials are saved encrypted to `google_token.json`.
+
+### Device flow (headless/remote servers)
+
+If you're running Gatekeeper on a server without a browser, use the device flow:
+
+```bash
+gatekeeper auth --flow device
 ```
 
 1. Gatekeeper prints a URL and a device code
@@ -169,13 +179,7 @@ gatekeeper auth
 3. Enter the code and authorize
 4. Credentials are saved encrypted to `google_token.json`
 
-### Desktop flow (local machine with browser)
-
-```bash
-gatekeeper auth --flow desktop
-```
-
-Opens the browser automatically and captures the redirect.
+> **Note**: The device flow requires an OAuth client of type **"TVs and Limited Input devices"** (not "Desktop app") in Google Cloud Console. If you get `Invalid client type`, use the desktop flow instead, or create a separate "TVs and Limited Input devices" client.
 
 > **Troubleshooting**: If auth fails with 401, verify your Client ID and Client Secret are complete in `.env` (not truncated) and your email is a Test User on the OAuth consent screen.
 
@@ -412,8 +416,8 @@ All four files are in `.gitignore` — they never get committed to version contr
 gatekeeper serve                          # Start the server
 gatekeeper serve --host 0.0.0.0 --port 9090  # Custom host/port
 gatekeeper init                           # Initialize database and seed policies
-gatekeeper auth                           # Google OAuth (device flow)
-gatekeeper auth --flow desktop            # Google OAuth (browser flow)
+gatekeeper auth                           # Google OAuth (desktop flow — opens browser)
+gatekeeper auth --flow device             # Google OAuth (device flow — for headless servers)
 gatekeeper key create --name my-agent     # Create an API key
 gatekeeper key create --name drv --permissions drive  # Scoped key
 gatekeeper key list                       # List all keys
@@ -427,7 +431,8 @@ gatekeeper status                         # Show configuration status
 
 | Symptom | Fix |
 |---------|-----|
-| `gatekeeper` command not found | Open a new terminal or `source ~/.bashrc` — uv adds to PATH |
+| `gatekeeper` command not found | Open a new terminal or `source ~/.bashrc` — the installer adds `~/.local/bin` to PATH |
+| Auth fails with `Invalid client type` | Use the desktop flow (`gatekeeper auth`), not `--flow device`. The device flow requires an OAuth client type of "TVs and Limited Input devices" |
 | Auth fails with 401 | Check Client ID/Secret are complete (not truncated) in `.env`. Verify your email is a Test User on the OAuth consent screen |
 | Auth fails with "app not verified" | Add your email as a Test User on the OAuth consent screen in Google Cloud Console |
 | "Route X is disabled" 403 | Go to Admin UI → Routes → enable the route |

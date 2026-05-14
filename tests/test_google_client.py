@@ -142,7 +142,7 @@ class TestGoogleCredentialManager:
 
 
 class TestDeviceAuthFlow:
-    """Tests for the device authorization flow (link + code)."""
+    """Tests for the device authorization flow (link + code, for headless/remote setups)."""
 
     def test_device_auth_no_client_id(self, tmp_path):
         """Device auth should fail gracefully with no client ID."""
@@ -313,5 +313,174 @@ class TestDeviceAuthFlow:
             assert "https://www.googleapis.com/auth/drive.readonly" in scopes
             assert "https://www.googleapis.com/auth/gmail.readonly" in scopes
             assert "https://www.googleapis.com/auth/calendar.readonly" in scopes
+        finally:
+            gatekeeper.google_client.settings = orig
+
+
+class TestDesktopAuthFlow:
+    """Tests for the desktop OAuth flow (browser redirect)."""
+
+    def test_desktop_auth_no_client_id(self, tmp_path):
+        """Desktop auth should fail gracefully with no client ID."""
+        from gatekeeper.google_client import GoogleCredentialManager
+
+        settings = _make_settings(tmp_path)
+        settings.google_client_id = None
+        settings.google_client_secret = None
+
+        import gatekeeper.google_client
+
+        orig = gatekeeper.google_client.settings
+        gatekeeper.google_client.settings = settings
+
+        try:
+            mgr = GoogleCredentialManager(token_path=Path(settings.google_token_file))
+            result = mgr.start_desktop_auth_flow()
+            assert result is None
+        finally:
+            gatekeeper.google_client.settings = orig
+
+    def test_desktop_auth_mock_success(self, tmp_path):
+        """Desktop auth flow should succeed with mocked InstalledAppFlow."""
+        from google.oauth2.credentials import Credentials
+
+        from gatekeeper.google_client import GoogleCredentialManager
+
+        settings = _make_settings(tmp_path)
+        token_path = Path(settings.google_token_file)
+
+        import gatekeeper.encryption
+        import gatekeeper.google_client
+
+        orig = gatekeeper.google_client.settings
+        orig_enc = gatekeeper.encryption.settings
+        gatekeeper.google_client.settings = settings
+        gatekeeper.encryption.settings = settings
+
+        try:
+            # Create mock credentials
+            mock_creds = Credentials(
+                token="test-access-token-desktop",
+                refresh_token="test-refresh-token-desktop",
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id="test-client-id",
+                client_secret="test-client-secret",
+                scopes=["https://www.googleapis.com/auth/drive.readonly"],
+            )
+
+            # Mock the flow: InstalledAppFlow.from_client_config().run_local_server()
+            mock_flow = MagicMock()
+            mock_flow.run_local_server.return_value = mock_creds
+
+            mock_iapp = MagicMock()
+            mock_iapp.from_client_config.return_value = mock_flow
+
+            import google_auth_oauthlib.flow
+            orig_class = google_auth_oauthlib.flow.InstalledAppFlow
+            google_auth_oauthlib.flow.InstalledAppFlow = mock_iapp
+
+            try:
+                mgr = GoogleCredentialManager(token_path=token_path)
+                result = mgr.start_desktop_auth_flow(
+                    scopes=["https://www.googleapis.com/auth/drive.readonly"]
+                )
+            finally:
+                google_auth_oauthlib.flow.InstalledAppFlow = orig_class
+
+            # Should return credentials
+            assert result is not None
+            assert result.token == "test-access-token-desktop"
+            assert result.refresh_token == "test-refresh-token-desktop"
+
+            # Token file should exist (encrypted)
+            assert token_path.exists()
+
+            # Verify the flow config used correct client details
+            call_kwargs = mock_iapp.from_client_config.call_args
+            config = call_kwargs[0][0]
+            assert config["installed"]["client_id"] == "test-client-id"
+            assert config["installed"]["client_secret"] == "test-client-secret"
+            assert "http://localhost" in config["installed"]["redirect_uris"]
+            assert call_kwargs[1]["scopes"] == ["https://www.googleapis.com/auth/drive.readonly"]
+        finally:
+            gatekeeper.google_client.settings = orig
+            gatekeeper.encryption.settings = orig_enc
+
+    def test_desktop_auth_flow_failure(self, tmp_path):
+        """Desktop auth should return None if InstalledAppFlow raises an exception."""
+        from gatekeeper.google_client import GoogleCredentialManager
+
+        settings = _make_settings(tmp_path)
+        token_path = Path(settings.google_token_file)
+
+        import gatekeeper.google_client
+
+        orig = gatekeeper.google_client.settings
+        gatekeeper.google_client.settings = settings
+
+        try:
+            mock_flow = MagicMock()
+            mock_flow.run_local_server.side_effect = Exception("Browser failed to open")
+
+            mock_iapp = MagicMock()
+            mock_iapp.from_client_config.return_value = mock_flow
+
+            import google_auth_oauthlib.flow
+            orig_class = google_auth_oauthlib.flow.InstalledAppFlow
+            google_auth_oauthlib.flow.InstalledAppFlow = mock_iapp
+
+            try:
+                mgr = GoogleCredentialManager(token_path=token_path)
+                result = mgr.start_desktop_auth_flow()
+            finally:
+                google_auth_oauthlib.flow.InstalledAppFlow = orig_class
+
+            assert result is None
+        finally:
+            gatekeeper.google_client.settings = orig
+
+
+class TestStartAuthFlow:
+    """Tests for start_auth_flow dispatching."""
+
+    def test_start_auth_flow_defaults_to_desktop(self, tmp_path):
+        """start_auth_flow with no args should use desktop flow (the default)."""
+        from gatekeeper.google_client import GoogleCredentialManager
+
+        settings = _make_settings(tmp_path)
+        settings.google_client_id = None  # Will fail fast — we just check it dispatches
+
+        import gatekeeper.google_client
+
+        orig = gatekeeper.google_client.settings
+        gatekeeper.google_client.settings = settings
+
+        try:
+            mgr = GoogleCredentialManager(token_path=Path(settings.google_token_file))
+            # Without flow kwarg, should dispatch to desktop (which will fail
+            # because client_id is None, but that proves the dispatch)
+            with patch.object(mgr, "start_desktop_auth_flow", return_value=None) as mock_desktop:
+                mgr.start_auth_flow()
+                mock_desktop.assert_called_once()
+        finally:
+            gatekeeper.google_client.settings = orig
+
+    def test_start_auth_flow_device_dispatches(self, tmp_path):
+        """start_auth_flow with flow='device' should use device flow."""
+        from gatekeeper.google_client import GoogleCredentialManager
+
+        settings = _make_settings(tmp_path)
+        settings.google_client_id = None
+
+        import gatekeeper.google_client
+
+        orig = gatekeeper.google_client.settings
+        gatekeeper.google_client.settings = settings
+
+        try:
+            mgr = GoogleCredentialManager(token_path=Path(settings.google_token_file))
+            with patch.object(mgr, "start_device_auth_flow", return_value=None) as mock_device:
+                mgr.start_auth_flow(flow="device")
+                mock_device.assert_called_once()
         finally:
             gatekeeper.google_client.settings = orig

@@ -92,21 +92,23 @@ nano .env
 
 Gatekeeper supports two OAuth authorization flows:
 
-#### Device Authorization (recommended — works anywhere)
+#### Desktop Browser (recommended — local machine)
 
 ```bash
 gatekeeper auth
 ```
 
-This displays a URL and a code. Open the URL on **any device** (phone, laptop, tablet), enter the code, and authorize. No browser on the server needed — perfect for headless machines and containers.
+Opens your browser automatically. Authorize Gatekeeper, then close the tab. Works with OAuth client type "Desktop app" — the type most people create.
 
-#### Desktop Browser (local machine only)
+#### Device Authorization (headless/remote servers)
 
 ```bash
-gatekeeper auth --flow desktop
+gatekeeper auth --flow device
 ```
 
-Opens a browser on the local machine and captures the redirect automatically. Use this when you're running Gatekeeper on your desktop.
+This displays a URL and a code. Open the URL on **any device** (phone, laptop, tablet), enter the code, and authorize. No browser on the server needed — perfect for headless machines and containers.
+
+> **Note**: The device flow requires an OAuth client of type **"TVs and Limited Input devices"**, not "Desktop app". If you get `Invalid client type`, use the desktop flow or create a separate client.
 
 #### Google Cloud Setup (one-time)
 
@@ -272,8 +274,8 @@ curl -u admin:password -X PATCH http://localhost:8080/admin/api/routes/1 \
 ```bash
 gatekeeper serve              # Start the server
 gatekeeper init               # Initialize database and seed policies
-gatekeeper auth               # Google OAuth — device flow (link + code, works anywhere)
-gatekeeper auth --flow desktop # Google OAuth — desktop flow (opens browser locally)
+gatekeeper auth               # Google OAuth — desktop flow (opens browser, recommended)
+gatekeeper auth --flow device # Google OAuth — device flow (for headless/remote servers)
 gatekeeper key create --name NAME [--permissions PERMS]   # Create API key
 gatekeeper key list           # List API keys
 gatekeeper key revoke --prefix PREFIX   # Revoke a key
