@@ -294,8 +294,7 @@ The Admin UI provides:
 | Page | Purpose |
 |------|---------|
 | **Dashboard** | Overview — requests, keys, auth status |
-| **Modules** | Enable/disable Drive, Gmail, Calendar |
-| **Routes** | Toggle individual API routes and configure policies |
+| **Modules** | Enable/disable modules (Drive, Gmail, Calendar) and toggle individual routes per module |
 | **API Keys** | Create, list, and revoke keys |
 | **Audit Log** | Searchable log of all requests |
 | **Auth Status** | Google OAuth connection status |
@@ -310,7 +309,7 @@ Enable write routes in the Routes page when you're ready to grant agents write a
 
 ### Available routes
 
-**Drive (5 routes)**
+**Drive (13 routes)**
 | Route | Method | Default | Policy |
 |-------|--------|---------|--------|
 | `drive.files.list` | GET | ✅ On | max_results=50 |
@@ -318,18 +317,42 @@ Enable write routes in the Routes page when you're ready to grant agents write a
 | `drive.files.export` | GET | ✅ On | — |
 | `drive.files.list_shared` | GET | ✅ On | max_results=50, query_filter |
 | `drive.files.copy` | POST | ❌ Off | — |
+| `drive.files.create` | POST | ❌ Off | — |
+| `drive.files.update` | PATCH | ❌ Off | — |
+| `drive.files.delete` | DELETE | ❌ Off | — |
+| `drive.files.trash` | POST | ❌ Off | — |
+| `drive.permissions.list` | GET | ✅ On | — |
+| `drive.permissions.get` | GET | ✅ On | — |
+| `drive.permissions.create` | POST | ❌ Off | — |
+| `drive.permissions.delete` | DELETE | ❌ Off | — |
 
-**Gmail (6 routes)**
+**Gmail (22 routes)**
 | Route | Method | Default | Policy |
 |-------|--------|---------|--------|
 | `gmail.messages.list` | GET | ✅ On | max_results=50, exclude SPAM/TRASH |
 | `gmail.messages.get` | GET | ✅ On | — |
 | `gmail.messages.send` | POST | ❌ Off | max_recipients=5 |
+| `gmail.messages.modify` | POST | ❌ Off | — |
+| `gmail.messages.trash` | POST | ❌ Off | — |
+| `gmail.messages.delete` | DELETE | ❌ Off | — |
 | `gmail.drafts.list` | GET | ✅ On | max_results=50 |
+| `gmail.drafts.get` | GET | ✅ On | — |
 | `gmail.drafts.create` | POST | ❌ Off | max_recipients=5 |
+| `gmail.drafts.update` | PUT | ❌ Off | max_recipients=5 |
+| `gmail.drafts.send` | POST | ❌ Off | max_recipients=5 |
+| `gmail.drafts.delete` | DELETE | ❌ Off | — |
 | `gmail.labels.list` | GET | ✅ On | — |
+| `gmail.labels.get` | GET | ✅ On | — |
+| `gmail.labels.create` | POST | ❌ Off | — |
+| `gmail.labels.update` | PATCH | ❌ Off | — |
+| `gmail.labels.delete` | DELETE | ❌ Off | — |
+| `gmail.filters.list` | GET | ❌ Off | — |
+| `gmail.filters.get` | GET | ❌ Off | — |
+| `gmail.filters.create` | POST | ❌ Off | — |
+| `gmail.filters.update` | PATCH | ❌ Off | — |
+| `gmail.filters.delete` | DELETE | ❌ Off | — |
 
-**Calendar (8 routes)**
+**Calendar (12 routes)**
 | Route | Method | Default | Policy |
 |-------|--------|---------|--------|
 | `calendar.events.list` | GET | ✅ On | max_results=50 |
@@ -337,8 +360,12 @@ Enable write routes in the Routes page when you're ready to grant agents write a
 | `calendar.events.create` | POST | ❌ Off | — |
 | `calendar.events.update` | PATCH | ❌ Off | — |
 | `calendar.events.delete` | DELETE | ❌ Off | — |
+| `calendar.events.quick_add` | POST | ❌ Off | — |
 | `calendar.calendars.list` | GET | ✅ On | — |
 | `calendar.calendarlist.list` | GET | ✅ On | max_results=50 |
+| `calendar.calendars.get` | GET | ✅ On | — |
+| `calendar.calendars.create` | POST | ❌ Off | — |
+| `calendar.calendars.delete` | DELETE | ❌ Off | — |
 | `calendar.freebusy.query` | POST | ✅ On | — |
 
 ### Policy configuration
@@ -440,6 +467,14 @@ gatekeeper key create --name drv --permissions drive  # Scoped key
 gatekeeper key list                       # List all keys
 gatekeeper key revoke --prefix gkp_a1b2   # Revoke a key
 gatekeeper status                         # Show configuration status
+gatekeeper service install                # Install systemd user service
+gatekeeper service start                  # Start the service
+gatekeeper service restart                # Restart (after config changes)
+gatekeeper service status                 # Check service status
+gatekeeper service logs                   # View service logs
+gatekeeper hosts list                     # List MCP allowed hosts
+gatekeeper hosts add <hostname>           # Add a host (Tailscale, LAN, etc.)
+gatekeeper hosts remove <hostname>        # Remove a host
 ```
 
 ---
@@ -452,7 +487,7 @@ gatekeeper status                         # Show configuration status
 | Auth fails with `Invalid client type` | Use the desktop flow (`gatekeeper auth`), not `--flow device`. The device flow requires an OAuth client type of "TVs and Limited Input devices" |
 | Auth fails with 401 | Check Client ID/Secret are complete (not truncated) in `.env`. Verify your email is a Test User on the OAuth consent screen |
 | Auth fails with "app not verified" | Add your email as a Test User on the OAuth consent screen in Google Cloud Console |
-| "Route X is disabled" 403 | Go to Admin UI → Routes → enable the route |
+| "Route X is disabled" 403 | Go to Admin UI → Modules → expand the module → enable the route |
 | Token refresh not working | Re-run `gatekeeper auth` to refresh. v0.1.0 fixes the expiry persistence bug |
 | Podman build fails on ARM | Ensure buildx is available: `podman buildx build --platform linux/arm64,linux/amd64 .` |
 | CORS errors in browser | Add your frontend origin to `GATEKEEPER_CORS_ORIGINS` in `.env` |

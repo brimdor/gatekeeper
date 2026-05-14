@@ -30,7 +30,7 @@ Gatekeeper sits between your AI agents and Google's APIs, acting as a policy lay
                               │                            │
                               │  ┌────────────────────┐   │
                               │  │   Admin WebUI      │   │
-                              │  │  /admin (HTMX)     │   │
+                              │  │  /admin (mobile)   │   │
                               │  └────────────────────┘   │
                               └──────────────────────────┘
 ```
@@ -121,7 +121,7 @@ This displays a URL and a code. Open the URL on **any device** (phone, laptop, t
 6. Copy the Client ID and Client Secret to your `.env`:
    ```bash
    GATEKEEPER_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-GATEKEEPER_GOOGLE_CLIENT_SECRET=your-client-secret
+   GATEKEEPER_GOOGLE_CLIENT_SECRET=your-client-secret
    ```
 7. Go to **OAuth consent screen** → add your email as a test user
 8. Run `gatekeeper auth`
@@ -142,7 +142,29 @@ GATEKEEPER_GOOGLE_CLIENT_SECRET=your-client-secret
 gatekeeper serve
 ```
 
-### 4. Create an API key for your agent
+Or install as a systemd service:
+
+```bash
+gatekeeper service install    # Install systemd user service
+gatekeeper service enable     # Enable on boot
+gatekeeper service start      # Start the service
+gatekeeper service status     # Check status
+gatekeeper service logs       # View logs
+gatekeeper service restart    # Restart after config changes
+```
+
+### 4. Configure MCP access (for remote/SSH)
+
+By default, MCP only accepts connections from localhost. To allow access from Tailscale, LAN, or other hosts:
+
+```bash
+gatekeeper hosts list              # View allowed hosts
+gatekeeper hosts add 100.127.113.87 # Add Tailscale IP
+gatekeeper hosts add myserver.local # Add hostname
+gatekeeper hosts remove 100.127.113.87  # Remove a host
+```
+
+### 5. Create an API key for your agent
 
 ```bash
 # Create a key with full access
@@ -162,13 +184,12 @@ Keys are prefixed with `gkp_` and the full key is only shown once on creation.
 
 ## Admin UI
 
-Access the admin UI at `http://localhost:8080/admin/` with HTTP Basic Auth.
+Access the admin UI at `http://localhost:8080/admin/` with HTTP Basic Auth. The UI is mobile-responsive — works on phones, tablets, and desktops.
 
 | Page | Purpose |
 |------|---------|
 | **Dashboard** | Overview — requests, keys, auth status |
-| **Modules** | Enable/disable Drive, Gmail, Calendar |
-| **Routes** | Toggle individual API routes and configure policies |
+| **Modules** | Enable/disable modules (Drive, Gmail, Calendar) and toggle individual routes |
 | **API Keys** | Create, list, and revoke keys |
 | **Audit Log** | Searchable log of all requests |
 | **Auth Status** | Google OAuth connection status |
@@ -223,7 +244,7 @@ curl -H "X-Gatekeeper-API-Key: gkp_your_key" \
 
 ## Module Reference
 
-### Drive (5 routes)
+### Drive (13 routes)
 
 | Route | Method | Default | Policy |
 |-------|--------|---------|--------|
@@ -232,19 +253,43 @@ curl -H "X-Gatekeeper-API-Key: gkp_your_key" \
 | `drive.files.export` | GET | ✅ On | — |
 | `drive.files.list_shared` | GET | ✅ On | max_results=50, query_filter |
 | `drive.files.copy` | POST | ❌ Off | — |
+| `drive.files.create` | POST | ❌ Off | — |
+| `drive.files.update` | PATCH | ❌ Off | — |
+| `drive.files.delete` | DELETE | ❌ Off | — |
+| `drive.files.trash` | POST | ❌ Off | — |
+| `drive.permissions.list` | GET | ✅ On | — |
+| `drive.permissions.get` | GET | ✅ On | — |
+| `drive.permissions.create` | POST | ❌ Off | — |
+| `drive.permissions.delete` | DELETE | ❌ Off | — |
 
-### Gmail (6 routes)
+### Gmail (22 routes)
 
 | Route | Method | Default | Policy |
 |-------|--------|---------|--------|
 | `gmail.messages.list` | GET | ✅ On | max_results=50, exclude SPAM/TRASH |
 | `gmail.messages.get` | GET | ✅ On | — |
 | `gmail.messages.send` | POST | ❌ Off | max_recipients=5 |
+| `gmail.messages.modify` | POST | ❌ Off | — |
+| `gmail.messages.trash` | POST | ❌ Off | — |
+| `gmail.messages.delete` | DELETE | ❌ Off | — |
 | `gmail.drafts.list` | GET | ✅ On | max_results=50 |
+| `gmail.drafts.get` | GET | ✅ On | — |
 | `gmail.drafts.create` | POST | ❌ Off | max_recipients=5 |
+| `gmail.drafts.update` | PUT | ❌ Off | max_recipients=5 |
+| `gmail.drafts.send` | POST | ❌ Off | max_recipients=5 |
+| `gmail.drafts.delete` | DELETE | ❌ Off | — |
 | `gmail.labels.list` | GET | ✅ On | — |
+| `gmail.labels.get` | GET | ✅ On | — |
+| `gmail.labels.create` | POST | ❌ Off | — |
+| `gmail.labels.update` | PATCH | ❌ Off | — |
+| `gmail.labels.delete` | DELETE | ❌ Off | — |
+| `gmail.filters.list` | GET | ❌ Off | — |
+| `gmail.filters.get` | GET | ❌ Off | — |
+| `gmail.filters.create` | POST | ❌ Off | — |
+| `gmail.filters.update` | PATCH | ❌ Off | — |
+| `gmail.filters.delete` | DELETE | ❌ Off | — |
 
-### Calendar (8 routes)
+### Calendar (12 routes)
 
 | Route | Method | Default | Policy |
 |-------|--------|---------|--------|
@@ -253,8 +298,12 @@ curl -H "X-Gatekeeper-API-Key: gkp_your_key" \
 | `calendar.events.create` | POST | ❌ Off | — |
 | `calendar.events.update` | PATCH | ❌ Off | — |
 | `calendar.events.delete` | DELETE | ❌ Off | — |
+| `calendar.events.quick_add` | POST | ❌ Off | — |
 | `calendar.calendars.list` | GET | ✅ On | — |
 | `calendar.calendarlist.list` | GET | ✅ On | max_results=50 |
+| `calendar.calendars.get` | GET | ✅ On | — |
+| `calendar.calendars.create` | POST | ❌ Off | — |
+| `calendar.calendars.delete` | DELETE | ❌ Off | — |
 | `calendar.freebusy.query` | POST | ✅ On | — |
 
 ## Policy Configuration
@@ -282,14 +331,28 @@ curl -u admin:password -X PATCH http://localhost:8080/admin/api/routes/1 \
 ## CLI Reference
 
 ```bash
-gatekeeper serve              # Start the server
-gatekeeper init               # Initialize database and seed policies
-gatekeeper auth               # Google OAuth — desktop flow (opens browser, recommended)
-gatekeeper auth --flow device # Google OAuth — device flow (for headless/remote servers)
-gatekeeper key create --name NAME [--permissions PERMS]   # Create API key
-gatekeeper key list           # List API keys
-gatekeeper key revoke --prefix PREFIX   # Revoke a key
-gatekeeper status             # Show configuration status
+gatekeeper serve                          # Start the server
+gatekeeper serve --host 0.0.0.0 --port 9090  # Custom host/port
+gatekeeper init                           # Initialize database and seed policies
+gatekeeper auth                           # Google OAuth (desktop flow — opens browser)
+gatekeeper auth --flow device             # Google OAuth (device flow — for SSH/headless)
+gatekeeper key create --name my-agent     # Create an API key
+gatekeeper key create --name drv --permissions drive  # Scoped key
+gatekeeper key list                       # List all keys
+gatekeeper key revoke --prefix gkp_a1b2   # Revoke a key
+gatekeeper status                         # Show configuration status
+gatekeeper service install                # Install systemd user service
+gatekeeper service uninstall              # Remove systemd user service
+gatekeeper service enable                 # Enable service on boot
+gatekeeper service disable                # Disable service on boot
+gatekeeper service start                  # Start the service
+gatekeeper service stop                   # Stop the service
+gatekeeper service restart                # Restart the service
+gatekeeper service status                 # Show service status
+gatekeeper service logs                   # Show service logs
+gatekeeper hosts list                     # List MCP allowed hosts
+gatekeeper hosts add <hostname>           # Add a host (Tailscale, LAN, etc.)
+gatekeeper hosts remove <hostname>        # Remove a host
 ```
 
 ## Configuration
@@ -308,13 +371,15 @@ All configuration via environment variables (prefix `GATEKEEPER_`) or `.env` fil
 | `GATEKEEPER_ADMIN_PASSWORD` | *(auto-generated)* | Admin UI password |
 | `GATEKEEPER_API_KEY_PREFIX` | `gkp_` | Prefix for API keys |
 | `GATEKEEPER_MCP_ENABLED` | `true` | Enable MCP server |
+| `GATEKEEPER_MCP_ALLOWED_HOSTS` | `["localhost:{port}", "127.0.0.1:{port}"]` | Allowed hosts for MCP connections (JSON array, supports `{port}` placeholder) |
+| `GATEKEEPER_RATE_LIMIT_PER_MINUTE` | `120` | Rate limit per minute per API key |
 | `GATEKEEPER_GOOGLE_CLIENT_ID` | *(required)* | Google OAuth client ID |
 | `GATEKEEPER_GOOGLE_CLIENT_SECRET` | *(required)* | Google OAuth client secret |
 | `GATEKEEPER_GOOGLE_TOKEN_FILE` | `./google_token.json` | Encrypted token file path |
 | `GATEKEEPER_DRIVE_ENABLED` | `false` | Enable Drive module |
 | `GATEKEEPER_GMAIL_ENABLED` | `false` | Enable Gmail module |
 | `GATEKEEPER_CALENDAR_ENABLED` | `false` | Enable Calendar module |
-| `GATEKEEPER_CORS_ORIGINS` | `[\"http://localhost:8080\"]` | CORS allowed origins |
+| `GATEKEEPER_CORS_ORIGINS` | `["http://localhost:8080"]` | CORS allowed origins |
 
 **Auto-generated secrets** are persisted in `gatekeeper_secrets.json` so they survive restarts. This file is created with `chmod 600` permissions. **Add it to `.gitignore`** (already in the default `.gitignore`).
 
@@ -351,6 +416,7 @@ The `/data` volume persists the SQLite database, Google token, and secrets acros
 - **Token Encryption**: Google OAuth refresh tokens encrypted at rest with Fernet
 - **Secret Persistence**: Auto-generated secrets stored in `gatekeeper_secrets.json` (chmod 600)
 - **Network**: Binds `127.0.0.1` by default — only accessible locally unless configured otherwise
+- **MCP Host Allowlist**: DNS rebinding protection; only `localhost` and `127.0.0.1` by default — add Tailscale/LAN hosts via `gatekeeper hosts add`
 - **CORS**: Configurable via `GATEKEEPER_CORS_ORIGINS`
 - **Admin Auth**: HTTP Basic Auth with auto-generated credentials
 
@@ -367,6 +433,7 @@ uv run pytest tests/ -v
 
 # Run linter
 uv run ruff check gatekeeper/
+uv run ruff format --check gatekeeper/ tests/
 
 # Run locally
 uv run gatekeeper serve
@@ -385,18 +452,19 @@ gatekeeper/
 │   ├── encryption.py         # Fernet encrypt/decrypt
 │   ├── auth.py               # API key auth + admin auth
 │   ├── policy.py             # Policy engine (allow/deny/transform)
-│   ├── google_client.py      # Google OAuth desktop flow
-│   ├── logging.py             # Audit logging
+│   ├── google_client.py     # Google OAuth desktop + device flow
+│   ├── logging.py            # Audit logging
+│   ├── service.py            # Systemd service management
 │   ├── api/
-│   │   ├── router.py         # Dynamic FastAPI router from modules
-│   │   └── proxy.py          # Policy-enforced Google API proxy
+│   │   ├── router.py          # Dynamic FastAPI router from modules
+│   │   └── proxy.py           # Policy-enforced Google API proxy
 │   ├── admin/
 │   │   ├── routes.py          # Admin REST API
 │   │   ├── models.py          # Pydantic response models
 │   │   └── ui/
 │   │       ├── __init__.py    # Jinja2 template rendering
 │   │       ├── static/style.css
-│   │       └── templates/     # HTMX + Tailwind dashboard
+│   │       └── templates/     # Mobile-responsive admin dashboard
 │   ├── mcp_server/
 │   │   ├── __init__.py        # FastMCP SSE server
 │   │   └── transport.py       # SSE transport config
@@ -404,10 +472,10 @@ gatekeeper/
 │       ├── __init__.py         # Module registry
 │       ├── base.py            # GoogleModule base class
 │       ├── route.py           # ModuleRoute definition
-│       ├── drive/             # Drive module (5 routes)
-│       ├── gmail/             # Gmail module (6 routes)
-│       └── calendar/          # Calendar module (8 routes)
-├── tests/                      # 78 tests
+│       ├── drive/             # Drive module (13 routes)
+│       ├── gmail/             # Gmail module (22 routes)
+│       └── calendar/          # Calendar module (12 routes)
+├── tests/                      # 227+ tests
 ├── Dockerfile                  # Multi-arch Podman/Docker build
 ├── docker-compose.yml          # Podman Compose config
 ├── install.sh                  # One-line install script
