@@ -302,6 +302,302 @@ class CalendarModule(GoogleModule):
                 },
                 default_policy={},
             ),
+            # ── ACL (sharing) ──
+            RouteDef(
+                route_id="calendar.acl.list",
+                method="GET",
+                google_path="/calendar/v3/calendars/{calendarId}/acl",
+                description="List calendar access control rules",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar identifier",
+                            "default": "primary",
+                        },
+                    },
+                    "required": ["calendar_id"],
+                },
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="calendar.acl.get",
+                method="GET",
+                google_path="/calendar/v3/calendars/{calendarId}/acl/{ruleId}",
+                description="Get a specific ACL rule",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar identifier",
+                            "default": "primary",
+                        },
+                        "rule_id": {
+                            "type": "string",
+                            "description": "The ACL rule ID to retrieve",
+                        },
+                    },
+                    "required": ["calendar_id", "rule_id"],
+                },
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="calendar.acl.create",
+                method="POST",
+                google_path="/calendar/v3/calendars/{calendarId}/acl",
+                description="Create an ACL rule (share a calendar)",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar identifier",
+                            "default": "primary",
+                        },
+                        "role": {
+                            "type": "string",
+                            "description": ("Role to grant: reader, writer, or owner"),
+                        },
+                        "scope_type": {
+                            "type": "string",
+                            "description": "Scope type: user, group, or default",
+                        },
+                        "scope_value": {
+                            "type": "string",
+                            "description": ("Email address or group email for the scope"),
+                        },
+                    },
+                    "required": ["calendar_id", "role", "scope_type"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="calendar.acl.delete",
+                method="DELETE",
+                google_path="/calendar/v3/calendars/{calendarId}/acl/{ruleId}",
+                description="Delete an ACL rule",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar identifier",
+                            "default": "primary",
+                        },
+                        "rule_id": {
+                            "type": "string",
+                            "description": "The ACL rule ID to delete",
+                        },
+                    },
+                    "required": ["calendar_id", "rule_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Calendar List ──
+            RouteDef(
+                route_id="calendar.calendarlist.get",
+                method="GET",
+                google_path=("/calendar/v3/users/me/calendarList/{calendarId}"),
+                description="Get a calendar list entry",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar identifier",
+                        },
+                    },
+                    "required": ["calendar_id"],
+                },
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="calendar.calendarlist.insert",
+                method="POST",
+                google_path="/calendar/v3/users/me/calendarList",
+                description="Add a calendar to the user's list",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "ID of the calendar to add",
+                        },
+                        "summary_override": {
+                            "type": "string",
+                            "description": "Custom name for the calendar",
+                        },
+                    },
+                    "required": ["calendar_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="calendar.calendarlist.update",
+                method="PUT",
+                google_path=("/calendar/v3/users/me/calendarList/{calendarId}"),
+                description="Update a calendar list entry",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar identifier",
+                        },
+                        "summary_override": {
+                            "type": "string",
+                            "description": "New custom name",
+                        },
+                        "hidden": {
+                            "type": "boolean",
+                            "description": ("Whether the calendar is hidden from the list"),
+                        },
+                        "selected": {
+                            "type": "boolean",
+                            "description": "Whether the calendar is selected",
+                        },
+                    },
+                    "required": ["calendar_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="calendar.calendarlist.delete",
+                method="DELETE",
+                google_path=("/calendar/v3/users/me/calendarList/{calendarId}"),
+                description="Remove a calendar from the user's list",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar identifier to remove",
+                        },
+                    },
+                    "required": ["calendar_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Calendars (update/clear) ──
+            RouteDef(
+                route_id="calendar.calendars.update",
+                method="PUT",
+                google_path="/calendar/v3/calendars/{calendarId}",
+                description="Update calendar metadata",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar identifier",
+                            "default": "primary",
+                        },
+                        "summary": {
+                            "type": "string",
+                            "description": "New title for the calendar",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "New description for the calendar",
+                        },
+                        "timezone": {
+                            "type": "string",
+                            "description": ("New time zone (e.g., 'America/Chicago')"),
+                        },
+                    },
+                    "required": ["calendar_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="calendar.calendars.clear",
+                method="POST",
+                google_path="/calendar/v3/calendars/{calendarId}/clear",
+                description="Clear all events from a calendar",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar identifier",
+                            "default": "primary",
+                        },
+                    },
+                    "required": ["calendar_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Colors ──
+            RouteDef(
+                route_id="calendar.colors.get",
+                method="GET",
+                google_path="/calendar/v3/colors",
+                description="Get color definitions for calendars and events",
+                input_schema={"type": "object", "properties": {}},
+                default_policy={},
+            ),
+            # ── Events: move ──
+            RouteDef(
+                route_id="calendar.events.move",
+                method="POST",
+                google_path=("/calendar/v3/calendars/{calendarId}/events/{eventId}/move"),
+                description="Move an event to another calendar",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Source calendar identifier",
+                        },
+                        "event_id": {
+                            "type": "string",
+                            "description": "Event identifier",
+                        },
+                        "destination": {
+                            "type": "string",
+                            "description": "Destination calendar identifier",
+                        },
+                    },
+                    "required": ["calendar_id", "event_id", "destination"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Settings ──
+            RouteDef(
+                route_id="calendar.settings.list",
+                method="GET",
+                google_path="/calendar/v3/users/me/settings",
+                description="List user settings",
+                input_schema={"type": "object", "properties": {}},
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="calendar.settings.get",
+                method="GET",
+                google_path="/calendar/v3/users/me/settings/{setting}",
+                description="Get a specific user setting",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "setting": {
+                            "type": "string",
+                            "description": ("The setting ID (e.g., 'timezone')"),
+                        },
+                    },
+                    "required": ["setting"],
+                },
+                default_policy={},
+            ),
         ]
 
 

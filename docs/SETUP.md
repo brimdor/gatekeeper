@@ -309,24 +309,38 @@ Enable write routes in the Routes page when you're ready to grant agents write a
 
 ### Available routes
 
-**Drive (13 routes)**
+**Drive (27 routes)**
 | Route | Method | Default | Policy |
 |-------|--------|---------|--------|
+| `drive.about.get` | GET | ✅ On | — |
 | `drive.files.list` | GET | ✅ On | max_results=50 |
 | `drive.files.get` | GET | ✅ On | — |
 | `drive.files.export` | GET | ✅ On | — |
 | `drive.files.list_shared` | GET | ✅ On | max_results=50, query_filter |
+| `drive.files.generate_ids` | GET | ✅ On | — |
+| `drive.changes.list` | GET | ✅ On | — |
+| `drive.changes.get_start_page_token` | GET | ✅ On | — |
+| `drive.comments.list` | GET | ✅ On | — |
+| `drive.comments.get` | GET | ✅ On | — |
+| `drive.revisions.list` | GET | ✅ On | — |
+| `drive.revisions.get` | GET | ✅ On | — |
+| `drive.permissions.list` | GET | ✅ On | — |
+| `drive.permissions.get` | GET | ✅ On | — |
+| `drive.drives.list` | GET | ✅ On | — |
+| `drive.drives.get` | GET | ✅ On | — |
 | `drive.files.copy` | POST | ❌ Off | — |
-| `drive.files.create` | POST | ❌ Off | — |
+| `drive.files.create` | POST | ❌ Off | max file size |
 | `drive.files.update` | PATCH | ❌ Off | — |
 | `drive.files.delete` | DELETE | ❌ Off | — |
 | `drive.files.trash` | POST | ❌ Off | — |
-| `drive.permissions.list` | GET | ✅ On | — |
-| `drive.permissions.get` | GET | ✅ On | — |
-| `drive.permissions.create` | POST | ❌ Off | — |
+| `drive.files.empty_trash` | DELETE | ❌ Off | — |
+| `drive.comments.create` | POST | ❌ Off | — |
+| `drive.drives.create` | POST | ❌ Off | — |
+| `drive.permissions.create` | POST | ❌ Off | max_recipients=5 |
+| `drive.permissions.update` | PATCH | ❌ Off | — |
 | `drive.permissions.delete` | DELETE | ❌ Off | — |
 
-**Gmail (22 routes)**
+**Gmail (37 routes)**
 | Route | Method | Default | Policy |
 |-------|--------|---------|--------|
 | `gmail.messages.list` | GET | ✅ On | max_results=50, exclude SPAM/TRASH |
@@ -334,13 +348,24 @@ Enable write routes in the Routes page when you're ready to grant agents write a
 | `gmail.messages.send` | POST | ❌ Off | max_recipients=5 |
 | `gmail.messages.modify` | POST | ❌ Off | — |
 | `gmail.messages.trash` | POST | ❌ Off | — |
+| `gmail.messages.untrash` | POST | ❌ Off | — |
 | `gmail.messages.delete` | DELETE | ❌ Off | — |
+| `gmail.messages.batch_modify` | POST | ❌ Off | — |
+| `gmail.messages.batch_delete` | POST | ❌ Off | — |
+| `gmail.messages.attachments.get` | GET | ✅ On | — |
 | `gmail.drafts.list` | GET | ✅ On | max_results=50 |
 | `gmail.drafts.get` | GET | ✅ On | — |
 | `gmail.drafts.create` | POST | ❌ Off | max_recipients=5 |
 | `gmail.drafts.update` | PUT | ❌ Off | max_recipients=5 |
 | `gmail.drafts.send` | POST | ❌ Off | max_recipients=5 |
 | `gmail.drafts.delete` | DELETE | ❌ Off | — |
+| `gmail.threads.list` | GET | ✅ On | — |
+| `gmail.threads.get` | GET | ✅ On | — |
+| `gmail.threads.modify` | POST | ❌ Off | — |
+| `gmail.threads.trash` | POST | ❌ Off | — |
+| `gmail.threads.untrash` | POST | ❌ Off | — |
+| `gmail.threads.delete` | DELETE | ❌ Off | — |
+| `gmail.history.list` | GET | ✅ On | — |
 | `gmail.labels.list` | GET | ✅ On | — |
 | `gmail.labels.get` | GET | ✅ On | — |
 | `gmail.labels.create` | POST | ❌ Off | — |
@@ -351,8 +376,12 @@ Enable write routes in the Routes page when you're ready to grant agents write a
 | `gmail.filters.create` | POST | ❌ Off | — |
 | `gmail.filters.update` | PATCH | ❌ Off | — |
 | `gmail.filters.delete` | DELETE | ❌ Off | — |
+| `gmail.settings.forwarding_addresses.list` | GET | ❌ Off | — |
+| `gmail.settings.forwarding_addresses.get` | GET | ❌ Off | — |
+| `gmail.settings.forwarding_addresses.create` | POST | ❌ Off | — |
+| `gmail.settings.forwarding_addresses.delete` | DELETE | ❌ Off | — |
 
-**Calendar (12 routes)**
+**Calendar (26 routes)**
 | Route | Method | Default | Policy |
 |-------|--------|---------|--------|
 | `calendar.events.list` | GET | ✅ On | max_results=50 |
@@ -361,12 +390,26 @@ Enable write routes in the Routes page when you're ready to grant agents write a
 | `calendar.events.update` | PATCH | ❌ Off | — |
 | `calendar.events.delete` | DELETE | ❌ Off | — |
 | `calendar.events.quick_add` | POST | ❌ Off | — |
+| `calendar.events.move` | POST | ❌ Off | — |
 | `calendar.calendars.list` | GET | ✅ On | — |
 | `calendar.calendarlist.list` | GET | ✅ On | max_results=50 |
+| `calendar.calendarlist.get` | GET | ✅ On | — |
+| `calendar.calendarlist.insert` | POST | ❌ Off | — |
+| `calendar.calendarlist.update` | PUT | ❌ Off | — |
+| `calendar.calendarlist.delete` | DELETE | ❌ Off | — |
 | `calendar.calendars.get` | GET | ✅ On | — |
 | `calendar.calendars.create` | POST | ❌ Off | — |
+| `calendar.calendars.update` | PUT | ❌ Off | — |
 | `calendar.calendars.delete` | DELETE | ❌ Off | — |
+| `calendar.calendars.clear` | POST | ❌ Off | — |
+| `calendar.acl.list` | GET | ✅ On | — |
+| `calendar.acl.get` | GET | ✅ On | — |
+| `calendar.acl.create` | POST | ❌ Off | — |
+| `calendar.acl.delete` | DELETE | ❌ Off | — |
+| `calendar.colors.get` | GET | ✅ On | — |
 | `calendar.freebusy.query` | POST | ✅ On | — |
+| `calendar.settings.list` | GET | ✅ On | — |
+| `calendar.settings.get` | GET | ✅ On | — |
 
 ### Policy configuration
 

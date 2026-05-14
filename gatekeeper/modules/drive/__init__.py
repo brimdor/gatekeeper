@@ -313,6 +313,271 @@ class DriveModule(GoogleModule):
                 default_policy={},
                 enabled_by_default=False,
             ),
+            # ── About ──
+            RouteDef(
+                route_id="drive.about.get",
+                method="GET",
+                google_path="/drive/v3/about",
+                description="Get user Drive storage quota and usage info",
+                input_schema={
+                    "type": "object",
+                    "properties": {},
+                },
+                default_policy={},
+            ),
+            # ── Changes ──
+            RouteDef(
+                route_id="drive.changes.list",
+                method="GET",
+                google_path="/drive/v3/changes",
+                description="List changes to files (incremental sync)",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "page_token": {
+                            "type": "string",
+                            "description": ("Token for continuing a previous list request"),
+                        },
+                        "page_size": {
+                            "type": "integer",
+                            "description": "Number of changes to return",
+                            "default": 100,
+                        },
+                    },
+                },
+                default_policy={"max_results": 100},
+            ),
+            RouteDef(
+                route_id="drive.changes.get_start_page_token",
+                method="GET",
+                google_path="/drive/v3/changes/startPageToken",
+                description="Get start page token for change tracking",
+                input_schema={
+                    "type": "object",
+                    "properties": {},
+                },
+                default_policy={},
+            ),
+            # ── Comments ──
+            RouteDef(
+                route_id="drive.comments.list",
+                method="GET",
+                google_path="/drive/v3/files/{fileId}/comments",
+                description="List comments on a file",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "file_id": {
+                            "type": "string",
+                            "description": "ID of the file",
+                        },
+                        "page_size": {
+                            "type": "integer",
+                            "description": "Number of comments to return",
+                            "default": 20,
+                        },
+                    },
+                    "required": ["file_id"],
+                },
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="drive.comments.get",
+                method="GET",
+                google_path=("/drive/v3/files/{fileId}/comments/{commentId}"),
+                description="Get a comment by ID",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "file_id": {
+                            "type": "string",
+                            "description": "ID of the file",
+                        },
+                        "comment_id": {
+                            "type": "string",
+                            "description": "ID of the comment",
+                        },
+                    },
+                    "required": ["file_id", "comment_id"],
+                },
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="drive.comments.create",
+                method="POST",
+                google_path="/drive/v3/files/{fileId}/comments",
+                description="Create a comment on a file",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "file_id": {
+                            "type": "string",
+                            "description": "ID of the file",
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "Comment text",
+                        },
+                    },
+                    "required": ["file_id", "content"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Shared Drives ──
+            RouteDef(
+                route_id="drive.drives.list",
+                method="GET",
+                google_path="/drive/v3/drives",
+                description="List shared drives",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "page_size": {
+                            "type": "integer",
+                            "description": "Number of drives to return",
+                            "default": 20,
+                        },
+                    },
+                },
+                default_policy={"max_results": 50},
+            ),
+            RouteDef(
+                route_id="drive.drives.get",
+                method="GET",
+                google_path="/drive/v3/drives/{driveId}",
+                description="Get shared drive metadata",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "drive_id": {
+                            "type": "string",
+                            "description": "ID of the shared drive",
+                        },
+                    },
+                    "required": ["drive_id"],
+                },
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="drive.drives.create",
+                method="POST",
+                google_path="/drive/v3/drives",
+                description="Create a shared drive",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Name of the new shared drive",
+                        },
+                    },
+                    "required": ["name"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Files (additional) ──
+            RouteDef(
+                route_id="drive.files.empty_trash",
+                method="DELETE",
+                google_path="/drive/v3/files/trash",
+                description="Permanently delete all trashed files",
+                input_schema={
+                    "type": "object",
+                    "properties": {},
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="drive.files.generate_ids",
+                method="GET",
+                google_path="/drive/v3/files/generateIds",
+                description="Generate file IDs for future uploads",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "count": {
+                            "type": "integer",
+                            "description": "Number of IDs to generate",
+                            "default": 10,
+                        },
+                    },
+                },
+                default_policy={},
+            ),
+            # ── Permissions (continued) ──
+            RouteDef(
+                route_id="drive.permissions.update",
+                method="PATCH",
+                google_path=("/drive/v3/files/{fileId}/permissions/{permissionId}"),
+                description="Update a permission on a file",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "file_id": {
+                            "type": "string",
+                            "description": "ID of the file",
+                        },
+                        "permission_id": {
+                            "type": "string",
+                            "description": "ID of the permission to update",
+                        },
+                        "role": {
+                            "type": "string",
+                            "description": ("New role: reader, writer, organizer, or owner"),
+                        },
+                    },
+                    "required": ["file_id", "permission_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Revisions ──
+            RouteDef(
+                route_id="drive.revisions.list",
+                method="GET",
+                google_path="/drive/v3/files/{fileId}/revisions",
+                description="List file revisions",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "file_id": {
+                            "type": "string",
+                            "description": "ID of the file",
+                        },
+                        "page_size": {
+                            "type": "integer",
+                            "description": "Number of revisions to return",
+                            "default": 20,
+                        },
+                    },
+                    "required": ["file_id"],
+                },
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="drive.revisions.get",
+                method="GET",
+                google_path=("/drive/v3/files/{fileId}/revisions/{revisionId}"),
+                description="Get a specific file revision",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "file_id": {
+                            "type": "string",
+                            "description": "ID of the file",
+                        },
+                        "revision_id": {
+                            "type": "string",
+                            "description": "ID of the revision",
+                        },
+                    },
+                    "required": ["file_id", "revision_id"],
+                },
+                default_policy={},
+            ),
         ]
 
 

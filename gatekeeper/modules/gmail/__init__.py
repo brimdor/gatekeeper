@@ -16,6 +16,7 @@ class GmailModule(GoogleModule):
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/gmail.send",
         "https://www.googleapis.com/auth/gmail.compose",
+        "https://www.googleapis.com/auth/gmail.settings.basic",
     ]
 
     def get_routes(self) -> list[RouteDef]:
@@ -549,6 +550,317 @@ class GmailModule(GoogleModule):
                         },
                     },
                     "required": ["label_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Message untrash ──
+            RouteDef(
+                route_id="gmail.messages.untrash",
+                method="POST",
+                google_path="/gmail/v1/users/me/messages/{messageId}/untrash",
+                description="Untrash a message (recover from trash)",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "message_id": {
+                            "type": "string",
+                            "description": "The ID of the message to untrash",
+                        },
+                    },
+                    "required": ["message_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Message batch operations ──
+            RouteDef(
+                route_id="gmail.messages.batch_modify",
+                method="POST",
+                google_path="/gmail/v1/users/me/messages/batchModify",
+                description="Modify labels on multiple messages at once",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of message IDs to modify",
+                        },
+                        "add_label_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Label IDs to add",
+                        },
+                        "remove_label_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Label IDs to remove",
+                        },
+                    },
+                    "required": ["ids"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.messages.batch_delete",
+                method="POST",
+                google_path="/gmail/v1/users/me/messages/batchDelete",
+                description="Delete multiple messages at once",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of message IDs to delete",
+                        },
+                    },
+                    "required": ["ids"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Message attachments ──
+            RouteDef(
+                route_id="gmail.messages.attachments.get",
+                method="GET",
+                google_path=("/gmail/v1/users/me/messages/{messageId}/attachments/{attachmentId}"),
+                description="Download a message attachment",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "message_id": {
+                            "type": "string",
+                            "description": "The ID of the message",
+                        },
+                        "attachment_id": {
+                            "type": "string",
+                            "description": "The ID of the attachment",
+                        },
+                    },
+                    "required": ["message_id", "attachment_id"],
+                },
+                default_policy={},
+            ),
+            # ── Threads ──
+            RouteDef(
+                route_id="gmail.threads.list",
+                method="GET",
+                google_path="/gmail/v1/users/me/threads",
+                description="List email threads (conversations)",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Gmail search query",
+                        },
+                        "label_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Label IDs to filter by",
+                        },
+                        "max_results": {
+                            "type": "integer",
+                            "description": "Maximum number of threads to return",
+                            "default": 20,
+                        },
+                    },
+                },
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="gmail.threads.get",
+                method="GET",
+                google_path="/gmail/v1/users/me/threads/{threadId}",
+                description="Get a thread with all its messages",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "thread_id": {
+                            "type": "string",
+                            "description": "The ID of the thread",
+                        },
+                        "format": {
+                            "type": "string",
+                            "description": ("Format: full, minimal, raw, metadata"),
+                            "default": "full",
+                        },
+                    },
+                    "required": ["thread_id"],
+                },
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="gmail.threads.modify",
+                method="POST",
+                google_path="/gmail/v1/users/me/threads/{threadId}/modify",
+                description="Modify labels on all messages in a thread",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "thread_id": {
+                            "type": "string",
+                            "description": "The ID of the thread",
+                        },
+                        "add_label_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Label IDs to add",
+                        },
+                        "remove_label_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Label IDs to remove",
+                        },
+                    },
+                    "required": ["thread_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.threads.trash",
+                method="POST",
+                google_path="/gmail/v1/users/me/threads/{threadId}/trash",
+                description="Trash a thread and all its messages",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "thread_id": {
+                            "type": "string",
+                            "description": "The ID of the thread to trash",
+                        },
+                    },
+                    "required": ["thread_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.threads.untrash",
+                method="POST",
+                google_path="/gmail/v1/users/me/threads/{threadId}/untrash",
+                description="Untrash a thread",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "thread_id": {
+                            "type": "string",
+                            "description": "The ID of the thread to untrash",
+                        },
+                    },
+                    "required": ["thread_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.threads.delete",
+                method="DELETE",
+                google_path="/gmail/v1/users/me/threads/{threadId}",
+                description="Permanently delete a thread",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "thread_id": {
+                            "type": "string",
+                            "description": ("The ID of the thread to permanently delete"),
+                        },
+                    },
+                    "required": ["thread_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── History ──
+            RouteDef(
+                route_id="gmail.history.list",
+                method="GET",
+                google_path="/gmail/v1/users/me/history",
+                description="List mailbox history (incremental sync)",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "start_history_id": {
+                            "type": "string",
+                            "description": "Starting history ID for the listing",
+                        },
+                        "max_results": {
+                            "type": "integer",
+                            "description": ("Maximum number of history records to return"),
+                            "default": 100,
+                        },
+                        "label_id": {
+                            "type": "string",
+                            "description": ("Only return history for this label"),
+                        },
+                    },
+                },
+                default_policy={},
+            ),
+            # ── Settings: forwarding ──
+            RouteDef(
+                route_id="gmail.settings.forwarding_addresses.list",
+                method="GET",
+                google_path=("/gmail/v1/users/me/settings/forwardingAddresses"),
+                description="List forwarding addresses",
+                input_schema={"type": "object", "properties": {}},
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.settings.forwarding_addresses.get",
+                method="GET",
+                google_path=("/gmail/v1/users/me/settings/forwardingAddresses/{forwardingEmail}"),
+                description="Get a forwarding address",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "forwarding_email": {
+                            "type": "string",
+                            "description": "The forwarding email address",
+                        },
+                    },
+                    "required": ["forwarding_email"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.settings.forwarding_addresses.create",
+                method="POST",
+                google_path=("/gmail/v1/users/me/settings/forwardingAddresses"),
+                description="Create a forwarding address",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "forwarding_email": {
+                            "type": "string",
+                            "description": "The email address to forward to",
+                        },
+                    },
+                    "required": ["forwarding_email"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.settings.forwarding_addresses.delete",
+                method="DELETE",
+                google_path=("/gmail/v1/users/me/settings/forwardingAddresses/{forwardingEmail}"),
+                description="Delete a forwarding address",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "forwarding_email": {
+                            "type": "string",
+                            "description": ("The forwarding email address to delete"),
+                        },
+                    },
+                    "required": ["forwarding_email"],
                 },
                 default_policy={},
                 enabled_by_default=False,

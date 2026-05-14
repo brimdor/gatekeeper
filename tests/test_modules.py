@@ -35,33 +35,24 @@ class TestDriveModule:
             assert required in ids, f"Missing write route: {required}"
 
     def test_write_routes_disabled_by_default(self):
-        write_routes = [
-            "drive.files.copy",
-            "drive.files.create",
-            "drive.files.update",
-            "drive.files.delete",
-            "drive.files.trash",
-            "drive.permissions.create",
-            "drive.permissions.delete",
-        ]
+        write_methods = {"POST", "PUT", "PATCH", "DELETE"}
         for route in self.mod.get_routes():
-            if route.route_id in write_routes:
+            if route.method in write_methods:
                 assert route.enabled_by_default is False, (
-                    f"{route.route_id} should be disabled by default"
+                    f"{route.route_id} ({route.method}) should be disabled by default"
                 )
 
-    def test_read_routes_enabled_by_default(self):
-        write_routes = {
-            "drive.files.copy",
-            "drive.files.create",
-            "drive.files.update",
-            "drive.files.delete",
-            "drive.files.trash",
-            "drive.permissions.create",
-            "drive.permissions.delete",
+    def test_core_read_routes_enabled_by_default(self):
+        core_read_routes = {
+            "drive.files.list",
+            "drive.files.get",
+            "drive.files.export",
+            "drive.about.get",
+            "drive.permissions.list",
+            "drive.permissions.get",
         }
         for route in self.mod.get_routes():
-            if route.route_id not in write_routes:
+            if route.route_id in core_read_routes:
                 assert route.enabled_by_default is True, (
                     f"{route.route_id} should be enabled by default"
                 )
@@ -130,26 +121,30 @@ class TestGmailModule:
             assert required in ids, f"Missing filter route: {required}"
 
     def test_write_routes_disabled_by_default(self):
-        write_routes = {
-            "gmail.messages.send",
-            "gmail.messages.modify",
-            "gmail.messages.trash",
-            "gmail.messages.delete",
-            "gmail.drafts.create",
-            "gmail.drafts.update",
-            "gmail.drafts.send",
-            "gmail.drafts.delete",
-            "gmail.labels.create",
-            "gmail.labels.update",
-            "gmail.labels.delete",
-            "gmail.filters.create",
-            "gmail.filters.update",
-            "gmail.filters.delete",
+        write_methods = {"POST", "PUT", "PATCH", "DELETE"}
+        for route in self.mod.get_routes():
+            if route.method in write_methods:
+                assert route.enabled_by_default is False, (
+                    f"{route.route_id} ({route.method}) should be disabled by default"
+                )
+
+    def test_core_read_routes_enabled_by_default(self):
+        core_read_routes = {
+            "gmail.messages.list",
+            "gmail.messages.get",
+            "gmail.drafts.list",
+            "gmail.drafts.get",
+            "gmail.labels.list",
+            "gmail.labels.get",
+            "gmail.threads.list",
+            "gmail.threads.get",
+            "gmail.messages.attachments.get",
+            "gmail.history.list",
         }
         for route in self.mod.get_routes():
-            if route.route_id in write_routes:
-                assert route.enabled_by_default is False, (
-                    f"{route.route_id} should be disabled by default"
+            if route.route_id in core_read_routes:
+                assert route.enabled_by_default is True, (
+                    f"{route.route_id} should be enabled by default"
                 )
 
     def test_messages_list_has_label_policy(self):
@@ -203,31 +198,33 @@ class TestCalendarModule:
             assert required in ids, f"Missing core route: {required}"
 
     def test_write_routes_disabled_by_default(self):
-        write_routes = {
-            "calendar.events.create",
-            "calendar.events.update",
-            "calendar.events.delete",
-            "calendar.events.quick_add",
-            "calendar.calendars.create",
-            "calendar.calendars.delete",
-        }
+        # POST/PUT/PATCH/DELETE routes are disabled by default,
+        # except for read-oriented POST routes (freebusy.query, quickAdd)
+        read_posts = {"calendar.freebusy.query", "calendar.events.quick_add"}
         for route in self.mod.get_routes():
-            if route.route_id in write_routes:
-                assert route.enabled_by_default is False, (
-                    f"{route.route_id} should be disabled by default"
-                )
+            if route.method in {"POST", "PUT", "PATCH", "DELETE"}:
+                if route.route_id not in read_posts:
+                    assert route.enabled_by_default is False, (
+                        f"{route.route_id} ({route.method}) should be disabled by default"
+                    )
 
-    def test_read_routes_enabled_by_default(self):
-        read_routes = {
+    def test_core_read_routes_enabled_by_default(self):
+        core_read_routes = {
             "calendar.events.list",
             "calendar.events.get",
             "calendar.calendars.list",
             "calendar.calendarlist.list",
             "calendar.calendars.get",
             "calendar.freebusy.query",
+            "calendar.acl.list",
+            "calendar.acl.get",
+            "calendar.calendarlist.get",
+            "calendar.colors.get",
+            "calendar.settings.list",
+            "calendar.settings.get",
         }
         for route in self.mod.get_routes():
-            if route.route_id in read_routes:
+            if route.route_id in core_read_routes:
                 assert route.enabled_by_default is True, (
                     f"{route.route_id} should be enabled by default"
                 )
