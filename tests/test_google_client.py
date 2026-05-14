@@ -572,8 +572,10 @@ class TestReadFromTerminal:
         """When stdin is a TTY, input() is used directly."""
         from gatekeeper.google_client import _read_from_terminal
 
-        with patch("sys.stdin") as mock_stdin, \
-             patch("builtins.input", return_value="hello from tty") as mock_input:
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("builtins.input", return_value="hello from tty") as mock_input,
+        ):
             mock_stdin.isatty.return_value = True
             result = _read_from_terminal("prompt: ")
             assert result == "hello from tty"
@@ -588,9 +590,11 @@ class TestReadFromTerminal:
         mock_tty_file.__enter__ = lambda s: mock_tty_file
         mock_tty_file.__exit__ = MagicMock(return_value=False)
 
-        with patch("sys.stdin") as mock_stdin, \
-             patch("builtins.open", return_value=mock_tty_file) as mock_open, \
-             patch("sys.stdout"):
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("builtins.open", return_value=mock_tty_file) as mock_open,
+            patch("sys.stdout"),
+        ):
             mock_stdin.isatty.return_value = False
             result = _read_from_terminal("prompt: ")
             assert result == "hello from dev/tty\n"
@@ -600,9 +604,11 @@ class TestReadFromTerminal:
         """When /dev/tty can't be opened, fall back to input()."""
         from gatekeeper.google_client import _read_from_terminal
 
-        with patch("sys.stdin") as mock_stdin, \
-             patch("builtins.input", return_value="fallback input") as mock_input, \
-             patch("builtins.open", side_effect=OSError("no /dev/tty")):
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("builtins.input", return_value="fallback input") as mock_input,
+            patch("builtins.open", side_effect=OSError("no /dev/tty")),
+        ):
             mock_stdin.isatty.return_value = False
             result = _read_from_terminal("prompt: ")
             assert result == "fallback input"

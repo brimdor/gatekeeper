@@ -77,16 +77,20 @@ class TestInstallService:
 
     def test_install_no_gatekeeper_binary(self, tmp_path):
         """Should fail if gatekeeper binary is not on PATH."""
-        with patch("gatekeeper.service._is_systemd_available", return_value=True), \
-             patch("gatekeeper.service._resolve_exec_path", return_value=None), \
-             patch("gatekeeper.service.SYSTEMD_USER_DIR", tmp_path / "sysd"):
+        with (
+            patch("gatekeeper.service._is_systemd_available", return_value=True),
+            patch("gatekeeper.service._resolve_exec_path", return_value=None),
+            patch("gatekeeper.service.SYSTEMD_USER_DIR", tmp_path / "sysd"),
+        ):
             result = install_service(skip_prompt=True)
             assert result is False
 
     def test_install_no_systemd(self, tmp_path):
         """Should fail gracefully when systemd is not available."""
-        with patch("gatekeeper.service._is_systemd_available", return_value=False), \
-             patch("gatekeeper.service.SYSTEMD_USER_DIR", tmp_path / "sysd"):
+        with (
+            patch("gatekeeper.service._is_systemd_available", return_value=False),
+            patch("gatekeeper.service.SYSTEMD_USER_DIR", tmp_path / "sysd"),
+        ):
             result = install_service(skip_prompt=True)
             assert result is False
 
@@ -95,11 +99,13 @@ class TestInstallService:
         sysd_dir = tmp_path / "sysd"
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
 
-        with patch("gatekeeper.service._is_systemd_available", return_value=True), \
-             patch("gatekeeper.service._resolve_exec_path", return_value="/usr/bin/gatekeeper"), \
-             patch("gatekeeper.service._resolve_work_dir", return_value="/home/user/gatekeeper"), \
-             patch("gatekeeper.service.SYSTEMD_USER_DIR", sysd_dir), \
-             patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl:
+        with (
+            patch("gatekeeper.service._is_systemd_available", return_value=True),
+            patch("gatekeeper.service._resolve_exec_path", return_value="/usr/bin/gatekeeper"),
+            patch("gatekeeper.service._resolve_work_dir", return_value="/home/user/gatekeeper"),
+            patch("gatekeeper.service.SYSTEMD_USER_DIR", sysd_dir),
+            patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
+        ):
             result = install_service(skip_prompt=True)
             assert result is True
 
@@ -121,8 +127,10 @@ class TestUninstallService:
 
     def test_uninstall_no_unit(self, tmp_path):
         """Should report not installed when unit file doesn't exist."""
-        with patch("gatekeeper.service.SYSTEMD_USER_DIR", tmp_path / "sysd"), \
-             patch("gatekeeper.service._systemctl") as mock_ctl:
+        with (
+            patch("gatekeeper.service.SYSTEMD_USER_DIR", tmp_path / "sysd"),
+            patch("gatekeeper.service._systemctl") as mock_ctl,
+        ):
             result = uninstall_service()
             assert result is True
             mock_ctl.assert_not_called()
@@ -135,9 +143,11 @@ class TestUninstallService:
         unit_path.write_text("[Service]\nExecStart=gatekeeper serve\n")
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
 
-        with patch("gatekeeper.service.SYSTEMD_USER_DIR", sysd_dir), \
-             patch("gatekeeper.service._unit_path", return_value=unit_path), \
-             patch("gatekeeper.service._systemctl", return_value=mock_result):
+        with (
+            patch("gatekeeper.service.SYSTEMD_USER_DIR", sysd_dir),
+            patch("gatekeeper.service._unit_path", return_value=unit_path),
+            patch("gatekeeper.service._systemctl", return_value=mock_result),
+        ):
             result = uninstall_service()
             assert result is True
             assert not unit_path.exists()
@@ -163,8 +173,10 @@ class TestEnableDisable:
         unit_path.write_text("[Service]\nExecStart=gatekeeper serve\n")
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
 
-        with patch("gatekeeper.service._unit_path", return_value=unit_path), \
-             patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl:
+        with (
+            patch("gatekeeper.service._unit_path", return_value=unit_path),
+            patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
+        ):
             result = enable_service()
             assert result is True
             # enable and start

@@ -226,9 +226,7 @@ def cli():
     service_subparsers = service_parser.add_subparsers(
         dest="service_command", help="Service commands"
     )
-    service_subparsers.add_parser(
-        "install", help="Install and enable the systemd user service"
-    )
+    service_subparsers.add_parser("install", help="Install and enable the systemd user service")
     service_subparsers.add_parser(
         "uninstall", help="Stop, disable, and remove the systemd user service"
     )
@@ -236,9 +234,7 @@ def cli():
     service_subparsers.add_parser("disable", help="Stop and disable the service")
     service_subparsers.add_parser("status", help="Show service status")
     logs_parser = service_subparsers.add_parser("logs", help="Show service logs")
-    logs_parser.add_argument(
-        "-f", "--follow", action="store_true", help="Follow log output"
-    )
+    logs_parser.add_argument("-f", "--follow", action="store_true", help="Follow log output")
 
     args = parser.parse_args()
 
