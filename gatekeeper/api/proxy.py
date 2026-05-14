@@ -176,6 +176,12 @@ class GoogleProxy:
         # Remove path params from normalized_params — remaining ones are query/body params
         # (path params were already extracted and substituted above)
 
+        # Gmail filter routes need special body transformation:
+        # The Gmail API expects nested {criteria: {...}, action: {...}} but
+        # the proxy receives flat parameters. Restructure before sending.
+        if route_id in ("gmail.filters.create", "gmail.filters.update"):
+            normalized_params = self._restructure_filter_body(normalized_params)
+
         # Make the request
         headers = {"Authorization": f"Bearer {creds.token}"}
 
@@ -260,3 +266,92 @@ class GoogleProxy:
                 status_code=500,
                 content={"error": True, "status": 500, "message": f"Internal error: {e}"},
             )
+
+    @staticmethod
+    def _restructure_filter_body(params: dict[str, Any]) -> dict[str, Any]:
+        """Restructure flat filter params into Gmail's nested format.
+
+        The Gmail filters.create and filters.update APIs expect a body like:
+        {
+            "criteria": {"query": "...", "from": "...", ...},
+            "action": {"addLabelIds": [...], "forward": "...", ...}
+        }
+
+        But the proxy receives flat parameters from MCP/REST callers:
+        {"query": "...", "label_ids": [...], "forward": "...", ...}
+
+        This method splits flat params into the nested structure.
+        """
+        # Filter criteria fields (as accepted by the Gmail API)
+        criteria_fields = {
+            "query",
+            "from",
+            "to",
+            "subject",
+            "negatedQuery",
+            "hasAttachment",
+            "excludeChats",
+            "size",
+            "sizeComparison",
+        }
+        # Action fields
+        action_fields = {
+            "addLabelIds",
+            "removeLabelIds",
+            "forward",
+            "archive",
+            "delete",
+            "markAsImportant",
+            "markAsRead",
+            "star",
+        }
+
+        # Map our snake_case names to Gmail's camelCase action names
+        snake_to_camel_action = {
+            "label_ids": "addLabelIds",
+            "mark_as_read": "markAsRead",
+            "mark_as_important": "markAsImportant",
+            "archive": "archive",
+            "delete": "delete",
+            "forward": "forward",
+            "star": "star",
+        }
+
+        body: dict[str, Any] = {}
+
+        # Also preserve any already-nested structures passed through
+        if "criteria" in params or "action" in params:
+            return params
+
+        criteria: dict[str, Any] = {}
+        action: dict[str, Any] = {}
+
+        for key, value in params.items():
+            # Skip path params that were already used
+            if key in ("filterId", "userId"):
+                continue
+
+            # Direct camelCase criteria match
+            if key in criteria_fields:
+                criteria[key] = value
+            # Direct camelCase action match
+            elif key in action_fields:
+                action[key] = value
+            # Map snake_case action names
+            elif key in snake_to_camel_action:
+                action[snake_to_camel_action[key]] = value
+            # labelIds → addLabelIds (common snake_case variant)
+            elif key == "labelIds":
+                action["addLabelIds"] = value
+
+        if criteria:
+            body["criteria"] = criteria
+        if action:
+            body["action"] = action
+
+        # If neither criteria nor action was populated, just return params as-is
+        # (let Google API reject with a clear error)
+        if not body:
+            return params
+
+        return body

@@ -1407,3 +1407,108 @@ class TestArrayCoercion:
             body = call_kwargs.get("json", {})
             # Not coerced — left as the original string
             assert body["addLabelIds"] == "not-a-json-array"
+
+
+class TestFilterBodyRestructuring:
+    """Test that Gmail filter creation/update params are restructured.
+
+    The Gmail API expects a nested {criteria: {...}, action: {...}} body,
+    but the proxy receives flat params. _restructure_filter_body must split
+    them correctly.
+    """
+
+    def test_query_only_filter(self):
+        """A filter with only a query should produce criteria with query."""
+        from gatekeeper.api.proxy import GoogleProxy
+
+        result = GoogleProxy._restructure_filter_body({"query": "from:alice@example.com"})
+        assert result == {"criteria": {"query": "from:alice@example.com"}}
+
+    def test_query_with_actions(self):
+        """A filter with query and action params should nest correctly."""
+        from gatekeeper.api.proxy import GoogleProxy
+
+        result = GoogleProxy._restructure_filter_body(
+            {
+                "query": "from:alice@example.com",
+                "label_ids": ["Label_1", "Label_2"],
+                "mark_as_read": True,
+                "archive": True,
+            }
+        )
+        assert result == {
+            "criteria": {"query": "from:alice@example.com"},
+            "action": {
+                "addLabelIds": ["Label_1", "Label_2"],
+                "markAsRead": True,
+                "archive": True,
+            },
+        }
+
+    def test_snake_case_params_mapped(self):
+        """Snake_case params like mark_as_read map to camelCase markAsRead."""
+        from gatekeeper.api.proxy import GoogleProxy
+
+        result = GoogleProxy._restructure_filter_body(
+            {
+                "query": "is:unread",
+                "mark_as_read": True,
+                "mark_as_important": True,
+            }
+        )
+        assert result["criteria"] == {"query": "is:unread"}
+        assert result["action"]["markAsRead"] is True
+        assert result["action"]["markAsImportant"] is True
+
+    def test_forward_filter(self):
+        """A filter that forwards emails with a query."""
+        from gatekeeper.api.proxy import GoogleProxy
+
+        result = GoogleProxy._restructure_filter_body(
+            {
+                "query": "from:boss@company.com",
+                "forward": "assistant@company.com",
+                "mark_as_important": True,
+            }
+        )
+        assert result == {
+            "criteria": {"query": "from:boss@company.com"},
+            "action": {
+                "forward": "assistant@company.com",
+                "markAsImportant": True,
+            },
+        }
+
+    def test_already_nested_structure_passthrough(self):
+        """If already-nested {criteria, action} is passed, return as-is."""
+        from gatekeeper.api.proxy import GoogleProxy
+
+        nested = {
+            "criteria": {"query": "is:unread"},
+            "action": {"addLabelIds": ["Label_1"]},
+        }
+        result = GoogleProxy._restructure_filter_body(nested)
+        assert result == nested
+
+    def test_camel_case_criteria_fields(self):
+        """CamelCase criteria fields like hasAttachment are recognized."""
+        from gatekeeper.api.proxy import GoogleProxy
+
+        result = GoogleProxy._restructure_filter_body(
+            {
+                "query": "has:attachment",
+                "hasAttachment": True,
+                "from": "alice@example.com",
+                "label_ids": ["INBOX"],
+            }
+        )
+        assert result["criteria"]["hasAttachment"] is True
+        assert result["criteria"]["from"] == "alice@example.com"
+        assert result["action"]["addLabelIds"] == ["INBOX"]
+
+    def test_empty_params_returns_empty(self):
+        """Empty params dict returns empty dict (let Google API reject it)."""
+        from gatekeeper.api.proxy import GoogleProxy
+
+        result = GoogleProxy._restructure_filter_body({})
+        assert result == {}
