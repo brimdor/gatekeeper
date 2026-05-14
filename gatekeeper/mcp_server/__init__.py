@@ -115,7 +115,7 @@ def create_mcp_server() -> Any:
     #  list_tools — dynamically build the tool list from the DB           #
     # ------------------------------------------------------------------ #
     @mcp._mcp_server.list_tools()
-    async def list_tools(request):
+    async def list_tools():
         """Return MCP tools for all enabled routes."""
         from mcp.types import Tool as MCPTool
 
