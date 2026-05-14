@@ -77,7 +77,7 @@ async function loadDashboard() {
     let auditHtml = '<div class="overflow-x-auto -mx-4 sm:mx-0"><table class="mobile-table w-full text-sm min-w-[500px]"><thead><tr class="text-gray-400 border-b border-gray-700"><th class="text-left p-2">Time</th><th class="text-left p-2">Key</th><th class="text-left p-2">Module</th><th class="text-left p-2">Route</th><th class="text-left p-2">Status</th></tr></thead><tbody>';
     entries.forEach(e => {
         const statusClass = e.status_code < 300 ? 'text-green-400' : e.status_code < 500 ? 'text-yellow-400' : 'text-red-400';
-        auditHtml += `<tr class="border-b border-gray-800"><td data-label="Time" class="p-2 text-gray-300 text-xs">${e.created_at ? new Date(e.created_at).toLocaleString() : ''}</td><td data-label="Key" class="p-2 font-mono text-xs">${e.api_key_prefix}</td><td data-label="Module" class="p-2">${e.module}</td><td data-label="Route" class="p-2 font-mono text-blue-300 text-xs">${e.route}</td><td data-label="Status" class="p-2 ${statusClass} font-bold">${e.status_code}</td></tr>`;
+        auditHtml += `<tr class="border-b border-gray-800"><td data-label="Time" class="p-2 text-gray-300 text-xs">${e.created_at || ''}</td><td data-label="Key" class="p-2 font-mono text-xs">${e.api_key_prefix}</td><td data-label="Module" class="p-2">${e.module}</td><td data-label="Route" class="p-2 font-mono text-blue-300 text-xs">${e.route}</td><td data-label="Status" class="p-2 ${statusClass} font-bold">${e.status_code}</td></tr>`;
     });
     auditHtml += '</tbody></table></div>';
     document.getElementById('recent-audit').innerHTML = auditHtml;

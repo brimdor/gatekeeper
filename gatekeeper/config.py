@@ -82,6 +82,11 @@ class Settings(BaseSettings):
     gmail_enabled: bool = False
     calendar_enabled: bool = False
 
+    # Display timezone for timestamps shown in the admin UI and CLI.
+    # Set to an IANA timezone name. Defaults to America/Chicago (CST/CDT).
+    # Stored datetimes are always UTC; this only affects display formatting.
+    display_timezone: str = "America/Chicago"
+
     # Encryption key for storing Google OAuth tokens (Fernet key, base64-encoded)
     encryption_key: str = ""  # Generated on first run if empty
 

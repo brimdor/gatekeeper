@@ -82,7 +82,7 @@ async function loadKeys() {
             <td data-label="Prefix" class="p-2 font-mono text-xs">${k.key_prefix}</td>
             <td data-label="Active" class="p-2">${k.is_active ? '<span class="text-green-400">✅</span>' : '<span class="text-red-400">❌</span>'}</td>
             <td data-label="Permissions" class="p-2 text-xs"><code>${k.permissions}</code></td>
-            <td data-label="Last Used" class="p-2 text-gray-400 text-xs hidden sm:table-cell">${k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'Never'}</td>
+            <td data-label="Last Used" class="p-2 text-gray-400 text-xs hidden sm:table-cell">${k.last_used_at || 'Never'}</td>
             <td data-label="" class="p-2 actions-cell">${k.is_active ? '<button onclick="revokeKey(' + k.id + ')" class="bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-xs min-h-[36px]">Revoke</button>' : ''}</td>
         </tr>`;
     });

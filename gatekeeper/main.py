@@ -403,7 +403,9 @@ async def _cli_key_list():
         print(f"\n{'Prefix':<15} {'Name':<20} {'Active':<8} {'Permissions':<20} {'Last Used'}")
         print("-" * 85)
         for key in keys:
-            last_used = str(key.last_used_at) if key.last_used_at else "Never"
+            from gatekeeper.format import format_dt
+
+            last_used = format_dt(key.last_used_at) or "Never"
             active = "✅" if key.is_active else "❌"
             print(
                 f"{key.key_prefix:<15} {key.name:<20} {active:<8} {key.permissions:<20} {last_used}"
