@@ -381,7 +381,8 @@ configure_mcp_hosts() {
 
     # Collect hosts interactively
     while true; do
-        tty_read -p "  Add a host? (leave empty to finish): " host_input
+        prompt "Add a host? (leave empty to finish):"
+        tty_read host_input
         if [[ -z "$host_input" ]]; then
             break
         fi
