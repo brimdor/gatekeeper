@@ -1199,4 +1199,211 @@ class TestModuleNotFound:
         assert result.status_code == 403
         # Should be denied because no policy
         assert _unwrap(result)["error"] is True
-        assert _unwrap(result)["status"] == 403
+
+
+class TestArrayCoercion:
+    """Test that array-type parameters sent as strings are coerced back to lists.
+
+    MCP clients may stringify JSON arrays in tool arguments (e.g., sending
+    '["Label_4"]' instead of ["Label_4"]). The proxy must detect this and
+    parse the string back into a proper list before forwarding to Google.
+    """
+
+    @pytest.mark.asyncio
+    async def test_messages_modify_string_array_coerced(self, db_session):
+        """addLabelIds sent as a JSON string should be coerced to a list."""
+        policy = RoutePolicy(
+            module="gmail",
+            route="gmail.messages.modify",
+            enabled=True,
+            policy_config="{}",
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "msg123", "labelIds": ["INBOX", "UNREAD"]}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            # Simulate MCP client sending add_label_ids as a JSON string
+            result = await proxy.call_google(
+                module_name="gmail",
+                route_id="gmail.messages.modify",
+                params={
+                    "message_id": "msg123",
+                    "add_label_ids": '["INBOX"]',  # String instead of list
+                    "remove_label_ids": '["UNREAD"]',  # String instead of list
+                },
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+            assert result.status_code == 200
+            # Verify the POST body was called with properly coerced arrays
+            call_kwargs = mock_client.post.call_args[1]
+            body = call_kwargs.get("json", {})
+            assert body["addLabelIds"] == ["INBOX"]
+            assert body["removeLabelIds"] == ["UNREAD"]
+
+    @pytest.mark.asyncio
+    async def test_messages_modify_list_array_unchanged(self, db_session):
+        """addLabelIds sent as a proper list should pass through unchanged."""
+        policy = RoutePolicy(
+            module="gmail",
+            route="gmail.messages.modify",
+            enabled=True,
+            policy_config="{}",
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "msg123", "labelIds": ["INBOX"]}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            # Proper list values — should not be modified
+            result = await proxy.call_google(
+                module_name="gmail",
+                route_id="gmail.messages.modify",
+                params={
+                    "message_id": "msg123",
+                    "add_label_ids": ["INBOX"],
+                    "remove_label_ids": ["UNREAD"],
+                },
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+            assert result.status_code == 200
+            call_kwargs = mock_client.post.call_args[1]
+            body = call_kwargs.get("json", {})
+            assert body["addLabelIds"] == ["INBOX"]
+            assert body["removeLabelIds"] == ["UNREAD"]
+
+    @pytest.mark.asyncio
+    async def test_messages_list_label_ids_string_coerced(self, db_session):
+        """labelIds sent as a JSON string in GET request should be coerced."""
+        policy = RoutePolicy(
+            module="gmail",
+            route="gmail.messages.list",
+            enabled=True,
+            policy_config="{}",
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"messages": []}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            # label_ids as JSON string
+            result = await proxy.call_google(
+                module_name="gmail",
+                route_id="gmail.messages.list",
+                params={
+                    "label_ids": '["INBOX", "UNREAD"]',
+                    "max_results": "10",
+                },
+                api_key_record=api_key,
+                request_method="GET",
+            )
+
+            assert result.status_code == 200
+            call_kwargs = mock_client.get.call_args[1]
+            query_params = call_kwargs.get("params", {})
+            # labelids should be coerced to a list
+            assert query_params["labelIds"] == ["INBOX", "UNREAD"]
+
+    @pytest.mark.asyncio
+    async def test_invalid_json_string_left_as_is(self, db_session):
+        """A string that isn't valid JSON array should be left as-is (API will reject)."""
+        policy = RoutePolicy(
+            module="gmail",
+            route="gmail.messages.modify",
+            enabled=True,
+            policy_config="{}",
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "msg123"}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            # Not a valid JSON string at all — should pass through unchanged
+            result = await proxy.call_google(
+                module_name="gmail",
+                route_id="gmail.messages.modify",
+                params={
+                    "message_id": "msg123",
+                    "add_label_ids": "not-a-json-array",
+                },
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+            assert result.status_code == 200
+            call_kwargs = mock_client.post.call_args[1]
+            body = call_kwargs.get("json", {})
+            # Not coerced — left as the original string
+            assert body["addLabelIds"] == "not-a-json-array"

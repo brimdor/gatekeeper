@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -128,6 +129,32 @@ class GoogleProxy:
             parts = key.split("_")
             camel_key = parts[0] + "".join(p.capitalize() for p in parts[1:])
             normalized_params[camel_key] = value
+
+        # Coerce array-type parameters that arrive as strings back to lists.
+        # MCP clients may stringify JSON arrays in tool arguments, and the
+        # direct REST API can also receive strings for array fields.
+        # Uses the route's input_schema to identify which params should be arrays.
+        schema_props = route.input_schema.get("properties", {})
+        # Map snake_case schema keys to their camelCase counterparts
+        schema_key_map = {}
+        for schema_key, schema_val in schema_props.items():
+            parts = schema_key.split("_")
+            camel = parts[0] + "".join(p.capitalize() for p in parts[1:])
+            schema_key_map[camel] = schema_val
+
+        for key in list(normalized_params.keys()):
+            value = normalized_params[key]
+            # Check if this param is defined as array type in the schema
+            prop_schema = schema_key_map.get(key, {})
+            if prop_schema.get("type") == "array" and isinstance(value, str):
+                try:
+                    parsed = json.loads(value)
+                    if isinstance(parsed, list):
+                        normalized_params[key] = parsed
+                    # If parsed isn't a list, leave as-is (let Google API reject it)
+                except (json.JSONDecodeError, TypeError):
+                    # Not valid JSON — leave as string and let the API reject it
+                    pass
 
         # Replace path parameters (e.g., {calendarId} -> actual value) in google_path
         google_path = route.google_path
