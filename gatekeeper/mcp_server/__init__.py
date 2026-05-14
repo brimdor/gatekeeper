@@ -102,11 +102,15 @@ def create_mcp_server() -> Any:
     mcp = FastMCP(
         name="gatekeeper",
         instructions=(
-            "Gatekeeper MCP server — a policy gateway for Google Workspace APIs. "
-            "Each tool proxies a single Google API route through the policy engine. "
-            "You MUST supply an ``api_key`` argument to every tool call for "
-            "authentication.  Available tools depend on which routes are enabled by "
-            "the administrator."
+            "Gatekeeper MCP server — a policy gateway for Google Workspace APIs "
+            "(Drive, Gmail, Calendar). Each tool proxies a single Google API route "
+            "through the policy engine. You MUST supply an ``api_key`` argument to "
+            "every tool call for authentication. Available tools depend on which "
+            "routes are enabled by the administrator — call list_tools to see what's "
+            "currently available. Do not assume any route is enabled or disabled; "
+            "if a tool call returns a 403 error, that route is disabled and only "
+            "the administrator can enable it. You cannot bypass disabled routes, "
+            "modify policies, or access admin settings."
         ),
         host=settings.host,
         transport_security=_build_transport_security(),
