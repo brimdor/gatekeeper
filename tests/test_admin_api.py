@@ -106,35 +106,50 @@ class TestModuleStatus:
         Toggling a module OFF should disable all its routes in the DB,
         and toggling it ON should re-enable them — without a server restart.
         """
-        # Toggle the module OFF
-        response = await client.post(
-            "/admin/api/modules/gmail/toggle",
-            headers=admin_headers,
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["module"] == "gmail"
-        assert data["enabled"] is False
-        assert data["routes_toggled"] > 0
+        from gatekeeper.config import settings
 
-        # Verify all gmail routes are now disabled in the DB
-        routes_after_off = await client.get("/admin/api/routes?module=gmail", headers=admin_headers)
-        for route in routes_after_off.json():
-            assert route["enabled"] is False, f"Route {route['route']} should be disabled"
+        # Ensure gmail starts enabled (session-scoped settings may have been
+        # mutated by earlier tests that called the toggle endpoint)
+        original_gmail_enabled = settings.gmail_enabled
+        settings.gmail_enabled = True
 
-        # Toggle the module back ON
-        response = await client.post(
-            "/admin/api/modules/gmail/toggle",
-            headers=admin_headers,
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["enabled"] is True
+        try:
+            # Toggle the module OFF
+            response = await client.post(
+                "/admin/api/modules/gmail/toggle",
+                headers=admin_headers,
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["module"] == "gmail"
+            assert data["enabled"] is False
+            assert data["routes_toggled"] > 0
 
-        # Verify all gmail routes are re-enabled
-        routes_after_on = await client.get("/admin/api/routes?module=gmail", headers=admin_headers)
-        for route in routes_after_on.json():
-            assert route["enabled"] is True, f"Route {route['route']} should be enabled"
+            # Verify all gmail routes are now disabled in the DB
+            routes_after_off = await client.get(
+                "/admin/api/routes?module=gmail", headers=admin_headers
+            )
+            for route in routes_after_off.json():
+                assert route["enabled"] is False, f"Route {route['route']} should be disabled"
+
+            # Toggle the module back ON
+            response = await client.post(
+                "/admin/api/modules/gmail/toggle",
+                headers=admin_headers,
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["enabled"] is True
+
+            # Verify all gmail routes are re-enabled
+            routes_after_on = await client.get(
+                "/admin/api/routes?module=gmail", headers=admin_headers
+            )
+            for route in routes_after_on.json():
+                assert route["enabled"] is True, f"Route {route['route']} should be enabled"
+        finally:
+            # Restore original settings state
+            settings.gmail_enabled = original_gmail_enabled
 
 
 @pytest.mark.asyncio
