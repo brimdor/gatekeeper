@@ -175,24 +175,31 @@ Access the admin UI at `http://localhost:8080/admin/` with HTTP Basic Auth.
 
 ## Using with AI Agents
 
-### MCP Server (recommended)
+Gatekeeper connects to AI agents via MCP (Model Context Protocol) — exposing enabled routes as discoverable tools that agents can call directly. Write routes (send, create, delete) are disabled by default; only a human admin can enable them.
 
-Gatekeeper exposes an MCP server at `/mcp/sse`. Connect your agent:
+**📖 Full MCP setup guides:**
+- **For humans** → [docs/MCP_SETUP_HUMAN.md](docs/MCP_SETUP_HUMAN.md) — configure Gatekeeper, create API keys, enable routes
+- **For AI agents** → [docs/MCP_SETUP_AGENT.md](docs/MCP_SETUP_AGENT.md) — how to connect, tool reference, error handling, security boundaries
+
+### Quick start: Connect your agent
 
 ```json
 {
   "mcpServers": {
     "gatekeeper": {
       "url": "http://localhost:8080/mcp/sse",
+      "transport": "sse",
       "headers": {
-        "Authorization": "Bearer gkp_your_api_key_here"
+        "X-Gatekeeper-API-Key": "gkp_your_api_key_here"
       }
     }
   }
 }
 ```
 
-When you enable a route in the admin UI, the agent automatically discovers it as a new tool. Disable it, and the tool disappears on the next `list_tools` call.
+> **⚠️ You MUST include `"transport": "sse"`.** Gatekeeper uses SSE transport. Without this, you'll get 405 errors.
+
+Every tool requires an `api_key` parameter. Disabled routes return `403` — they cannot be bypassed.
 
 ### REST API
 

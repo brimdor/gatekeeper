@@ -366,24 +366,31 @@ curl -u admin:password -X PATCH http://localhost:8080/admin/api/routes/1 \
 
 ## Step 10 — Connect your AI agent
 
+**📖 For detailed MCP setup, see:**
+- **Human administrators** → [docs/MCP_SETUP_HUMAN.md](MCP_SETUP_HUMAN.md)
+- **AI agents** → [docs/MCP_SETUP_AGENT.md](MCP_SETUP_AGENT.md)
+
 ### MCP server (recommended)
 
-Add to your agent's config:
+Gatekeeper exposes an MCP server at `/mcp/sse`. Add to your agent's config:
 
 ```json
 {
   "mcpServers": {
     "gatekeeper": {
       "url": "http://localhost:8080/mcp/sse",
+      "transport": "sse",
       "headers": {
-        "Authorization": "Bearer gkp_your_api_key_here"
+        "X-Gatekeeper-API-Key": "gkp_your_api_key_here"
       }
     }
   }
 }
 ```
 
-When you enable a route in the Admin UI, the agent automatically discovers it as a new tool. Disable it and the tool disappears on the next `list_tools` call.
+> **⚠️ You MUST include `"transport": "sse"`.** Without it, you'll get 405 errors from clients that default to Streamable HTTP.
+
+When you enable a route in the Admin UI, the agent discovers it as a new tool. Disabled routes return `403` — they cannot be bypassed.
 
 ### REST API (direct calls)
 
