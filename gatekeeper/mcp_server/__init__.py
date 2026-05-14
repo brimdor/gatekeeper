@@ -191,7 +191,7 @@ def create_mcp_server() -> Any:
                 types.TextContent(
                     type="text",
                     text=json.dumps(
-                        {"error": True, "message": "API key required (pass as api_key argument)"}
+                        {"error": True, "status": 401, "message": "API key required (pass as api_key argument)"}
                     ),
                 )
             ]
@@ -201,7 +201,7 @@ def create_mcp_server() -> Any:
             return [
                 types.TextContent(
                     type="text",
-                    text=json.dumps({"error": True, "message": "Invalid API key"}),
+                    text=json.dumps({"error": True, "status": 401, "message": "Invalid API key"}),
                 )
             ]
 

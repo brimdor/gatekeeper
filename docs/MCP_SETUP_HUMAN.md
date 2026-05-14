@@ -76,9 +76,9 @@ gatekeeper key create --name nova-agent
 
 Save this key — it's shown only once. Each agent should have its own key so you can revoke access individually.
 
-For a read-only agent (no write/delete routes):
+For a module-restricted agent (access only to specified modules):
 ```bash
-gatekeeper key create --name readonly-agent --permissions drive,gmail,calendar
+gatekeeper key create --name drive-only --permissions drive
 ```
 
 ---
@@ -188,10 +188,7 @@ Every tool call requires an `api_key` parameter:
 }
 ```
 
-If a route is disabled in the admin UI, the tool still appears in `list_tools` but calling it returns:
-```json
-{"error": true, "status": 403, "message": "Route calendar.events.create is disabled"}
-```
+If a route is disabled in the admin UI, it **will not appear** in `list_tools` at all — enabling a route makes it appear immediately, and disabling removes it. You cannot call a disabled route.
 
 ---
 
@@ -212,7 +209,7 @@ If a route is disabled in the admin UI, the tool still appears in `list_tools` b
 |---|---|
 | Agent gets "Invalid API key" | Check that the key matches exactly (copy from `gatekeeper key list` output — only the prefix is stored) |
 | Agent gets 405 Method Not Allowed | You're missing `transport: sse` in the config — Gatekeeper uses SSE, not Streamable HTTP |
-| Agent gets "Route X is disabled" (403) | Go to Admin UI → Routes → enable the route |
+| Agent gets "Route X is disabled" (403) | Go to Admin UI → Modules → expand the module → enable the route |
 | Agent can't connect | Check `GATEKEEPER_MCP_ALLOWED_HOSTS` includes the agent's origin; verify Gatekeeper is listening on the right interface (`0.0.0.0` for LAN) |
 | Tools appear but calls fail with 401 | Google OAuth token may need refresh — run `gatekeeper auth` again |
 | 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT | Missing OAuth scopes. Add the required scopes in the Google Cloud Console's **OAuth consent screen → Data Access** (see the scopes table above), then re-run `gatekeeper auth` |

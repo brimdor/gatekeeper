@@ -13,6 +13,7 @@ Gatekeeper sits between you and Google's APIs. You call MCP tools, Gatekeeper en
 - You **cannot bypass** disabled routes
 - You **cannot modify** policies, keys, or admin settings — those require HTTP Basic Auth
 - **Always list available tools first** — do not assume any route is enabled or disabled. Routes are toggled by the human admin, and you must discover what's available by calling `list_tools`.
+- **Disabled routes do NOT appear in `list_tools`** — only enabled routes are shown. If a route isn't in the tool list, it's currently disabled and you cannot call it.
 
 ---
 
@@ -158,7 +159,7 @@ Dots in the route ID become double underscores. Examples:
 Gatekeeper can expose tools from three modules. **Call `list_tools` to see which ones are actually available** — the admin decides which routes are enabled.
 
 ### Drive module
-`drive__files_list`, `drive__files_get`, `drive__files_export`, `drive__files_list_shared`, `drive__files_copy`, `drive__files_create`, `drive__files_update`, `drive__files_delete`, `drive__files_trash`, `drive__permissions_list`, `drive__permissions_get`, `drive__permissions_create`, `drive__permissions_delete`
+`drive__about_get`, `drive__files_list`, `drive__files_get`, `drive__files_export`, `drive__files_list_shared`, `drive__files_generate_ids`, `drive__changes_list`, `drive__changes_get_start_page_token`, `drive__comments_list`, `drive__comments_get`, `drive__comments_create`, `drive__revisions_list`, `drive__revisions_get`, `drive__permissions_list`, `drive__permissions_get`, `drive__permissions_create`, `drive__permissions_update`, `drive__permissions_delete`, `drive__drives_list`, `drive__drives_get`, `drive__drives_create`, `drive__files_copy`, `drive__files_create`, `drive__files_update`, `drive__files_delete`, `drive__files_trash`, `drive__files_empty_trash`
 
 ### Gmail module
 `gmail__messages_list`, `gmail__messages_get`, `gmail__messages_send`, `gmail__messages_modify`, `gmail__messages_trash`, `gmail__messages_untrash`, `gmail__messages_delete`, `gmail__messages_batch_modify`, `gmail__messages_batch_delete`, `gmail__messages_attachments_get`, `gmail__drafts_list`, `gmail__drafts_get`, `gmail__drafts_create`, `gmail__drafts_update`, `gmail__drafts_send`, `gmail__drafts_delete`, `gmail__threads_list`, `gmail__threads_get`, `gmail__threads_modify`, `gmail__threads_trash`, `gmail__threads_untrash`, `gmail__threads_delete`, `gmail__history_list`, `gmail__labels_list`, `gmail__labels_get`, `gmail__labels_create`, `gmail__labels_update`, `gmail__labels_delete`, `gmail__filters_list`, `gmail__filters_get`, `gmail__filters_create`, `gmail__filters_update`, `gmail__filters_delete`, `gmail__settings_forwarding_addresses_list`, `gmail__settings_forwarding_addresses_get`, `gmail__settings_forwarding_addresses_create`, `gmail__settings_forwarding_addresses_delete`
@@ -166,17 +167,15 @@ Gatekeeper can expose tools from three modules. **Call `list_tools` to see which
 ### Calendar module
 `calendar__events_list`, `calendar__events_get`, `calendar__events_create`, `calendar__events_update`, `calendar__events_delete`, `calendar__events_quick_add`, `calendar__events_move`, `calendar__calendars_list`, `calendar__calendarlist_list`, `calendar__calendarlist_get`, `calendar__calendarlist_insert`, `calendar__calendarlist_update`, `calendar__calendarlist_delete`, `calendar__calendars_get`, `calendar__calendars_create`, `calendar__calendars_update`, `calendar__calendars_delete`, `calendar__calendars_clear`, `calendar__acl_list`, `calendar__acl_get`, `calendar__acl_create`, `calendar__acl_delete`, `calendar__colors_get`, `calendar__freebusy_query`, `calendar__settings_list`, `calendar__settings_get`
 
-### Drive module
-`drive__about_get`, `drive__files_list`, `drive__files_get`, `drive__files_export`, `drive__files_list_shared`, `drive__files_generate_ids`, `drive__changes_list`, `drive__changes_get_start_page_token`, `drive__comments_list`, `drive__comments_get`, `drive__comments_create`, `drive__revisions_list`, `drive__revisions_get`, `drive__permissions_list`, `drive__permissions_get`, `drive__permissions_create`, `drive__permissions_update`, `drive__permissions_delete`, `drive__drives_list`, `drive__drives_get`, `drive__drives_create`, `drive__files_copy`, `drive__files_create`, `drive__files_update`, `drive__files_delete`, `drive__files_trash`, `drive__files_empty_trash`
 
 ---
 ## Error responses
 
 | Status | Meaning | What to do |
 |---|---|---|
-| 401 | Invalid or missing API key | Check your API key — must include the `gkp_` prefix and be the full key |
+| 401 | Invalid or missing API key | Check your API key — must include the `gkp_` prefix and be the full key. Error response: `{"error": true, "message": "Invalid API key"}` |
 | 403 | Route is disabled | Ask the admin to enable the route. Do not retry — it will keep failing until they enable it. |
-| 401 | Google credentials not configured | The admin needs to run `gatekeeper auth` |
+| 401 | Google credentials not configured | The admin needs to run `gatekeeper auth`. Error response: `{"error": true, "status": 401, "message": "Google credentials not configured..."}` |
 | 404 | Route not found | Check the tool name — use `__` (double underscore) not `.` (dot) |
 | 502 | Google API error | Temporary upstream issue, retry after a moment |
 

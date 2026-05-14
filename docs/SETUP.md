@@ -76,7 +76,7 @@ nano .env   # or your preferred editor
 GATEKEEPER_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GATEKEEPER_GOOGLE_CLIENT_SECRET=your-client-secret
 
-# Enable the APIs you need
+# Enable the APIs you need (all default to false — you MUST set these to true)
 GATEKEEPER_DRIVE_ENABLED=true
 GATEKEEPER_GMAIL_ENABLED=true
 GATEKEEPER_CALENDAR_ENABLED=true
@@ -98,10 +98,14 @@ GATEKEEPER_ENCRYPTION_KEY=     # OAuth token encryption at rest
 GATEKEEPER_HOST=127.0.0.1                                    # Bind address
 GATEKEEPER_PORT=8080                                         # Port
 GATEKEEPER_DATABASE_URL=sqlite+aiosqlite:///./gatekeeper.db  # Database
-GATEKEEPER_CORS_ORIGINS=["http://localhost:8080"]            # CORS origins
+GATEKEEPER_CORS_ORIGINS=["http://localhost:8080","http://127.0.0.1:8080"]  # CORS origins
 GATEKEEPER_RATE_LIMIT_PER_MINUTE=120                         # Rate limit
 GATEKEEPER_API_KEY_PREFIX=gkp_                               # Key prefix
 GATEKEEPER_MCP_ENABLED=true                                  # MCP server
+GATEKEEPER_MCP_ALLOWED_HOSTS=[]                              # Additional MCP hosts (localhost always allowed)
+GATEKEEPER_DISPLAY_TIMEZONE=America/Chicago                  # Timestamp display timezone
+GATEKEEPER_ADMIN_USERNAME=admin                               # Admin UI username
+GATEKEEPER_GOOGLE_TOKEN_FILE=./google_token.json              # OAuth token file path
 GATEKEEPER_DEBUG=false                                       # Debug mode
 ```
 
@@ -197,13 +201,17 @@ gatekeeper init
 This command:
 - Creates `gatekeeper.db` (SQLite)
 - Seeds route policies for all modules (Drive, Gmail, Calendar)
+- Generates an admin password (saved to `gatekeeper_secrets.json`)
 - Generates a **default admin API key** — **save it immediately, it's only shown once**
 
 Expected output:
 ```
+🔑 Admin password generated: <password>
+   Saved to gatekeeper_secrets.json
+
 ============================================================
 🔑 Default API Key generated (save this — it won't be shown again):
-   gkp_a1b2c3d4e5f6...
+   gkp_aBcDeFgHiJkLmNoPqRsTuVwXyZ01234567890
 ============================================================
 ✅ Database initialized and default policies seeded.
 ```
@@ -263,6 +271,17 @@ gatekeeper serve --host 0.0.0.0 --port 9090
 ```
 
 ### Systemd (recommended for production)
+
+Use the built-in command to install and enable the service:
+
+```bash
+gatekeeper service install    # Install systemd user service
+gatekeeper service enable     # Enable and start the service
+gatekeeper service status     # Check status
+gatekeeper service logs -f    # Follow logs
+```
+
+If you prefer manual setup:
 
 ```bash
 mkdir -p ~/.config/systemd/user
@@ -350,7 +369,7 @@ The Admin UI provides:
 | **Dashboard** | Overview — requests, keys, auth status |
 | **Modules** | Enable/disable modules (Drive, Gmail, Calendar) and toggle individual routes per module |
 | **API Keys** | Create, list, and revoke keys |
-| **Audit Log** | Searchable log of all requests |
+| **Audit Log** | Filterable log of all requests |
 | **Auth Status** | Google OAuth connection status |
 
 ### Default route policy
@@ -359,7 +378,7 @@ By default:
 - **Read routes are enabled** — list, get, export
 - **Write routes are disabled** — send, create, update, delete
 
-Enable write routes in the Routes page when you're ready to grant agents write access.
+Enable write routes in the Modules page (expand a module and toggle individual routes) when you're ready to grant agents write access.
 
 ### Available routes
 
@@ -370,7 +389,7 @@ Enable write routes in the Routes page when you're ready to grant agents write a
 | `drive.files.list` | GET | ✅ On | max_results=50 |
 | `drive.files.get` | GET | ✅ On | — |
 | `drive.files.export` | GET | ✅ On | — |
-| `drive.files.list_shared` | GET | ✅ On | max_results=50, query_filter |
+| `drive.files.list_shared` | GET | ✅ On | max_results=50, query_filter=sharedWithMe |
 | `drive.files.generate_ids` | GET | ✅ On | — |
 | `drive.changes.list` | GET | ✅ On | — |
 | `drive.changes.get_start_page_token` | GET | ✅ On | — |
@@ -383,7 +402,7 @@ Enable write routes in the Routes page when you're ready to grant agents write a
 | `drive.drives.list` | GET | ✅ On | — |
 | `drive.drives.get` | GET | ✅ On | — |
 | `drive.files.copy` | POST | ❌ Off | — |
-| `drive.files.create` | POST | ❌ Off | max file size |
+| `drive.files.create` | POST | ❌ Off | max_file_size_mb |
 | `drive.files.update` | PATCH | ❌ Off | — |
 | `drive.files.delete` | DELETE | ❌ Off | — |
 | `drive.files.trash` | POST | ❌ Off | — |
@@ -397,9 +416,9 @@ Enable write routes in the Routes page when you're ready to grant agents write a
 **Gmail (37 routes)**
 | Route | Method | Default | Policy |
 |-------|--------|---------|--------|
-| `gmail.messages.list` | GET | ✅ On | max_results=50, exclude SPAM/TRASH |
+| `gmail.messages.list` | GET | ✅ On | max_results=50, allowed_labels, exclude SPAM/TRASH |
 | `gmail.messages.get` | GET | ✅ On | — |
-| `gmail.messages.send` | POST | ❌ Off | max_recipients=5 |
+| `gmail.messages.send` | POST | ❌ Off | max_recipients=5, max_attachment_size_mb=10, require_body |
 | `gmail.messages.modify` | POST | ❌ Off | — |
 | `gmail.messages.trash` | POST | ❌ Off | — |
 | `gmail.messages.untrash` | POST | ❌ Off | — |
@@ -410,7 +429,7 @@ Enable write routes in the Routes page when you're ready to grant agents write a
 | `gmail.drafts.list` | GET | ✅ On | max_results=50 |
 | `gmail.drafts.get` | GET | ✅ On | — |
 | `gmail.drafts.create` | POST | ❌ Off | max_recipients=5 |
-| `gmail.drafts.update` | PUT | ❌ Off | max_recipients=5 |
+| `gmail.drafts.update` | PUT | ❌ Off | — |
 | `gmail.drafts.send` | POST | ❌ Off | max_recipients=5 |
 | `gmail.drafts.delete` | DELETE | ❌ Off | — |
 | `gmail.threads.list` | GET | ✅ On | — |
@@ -476,8 +495,11 @@ Each route has a JSON policy config that controls behavior:
 | `exclude_labels` | Gmail list | Filter out these Gmail labels |
 | `blocked_fields` | Any | Strip these fields from responses |
 | `max_items` | Any | Cap array lengths in responses |
-| `query_filter` | Drive list | Force a Drive query parameter |
+| `query_filter` | Drive list | Force a Drive query parameter (e.g., `sharedWithMe`) |
 | `max_recipients` | Gmail send/draft | Limit email recipients |
+| `max_file_size_mb` | Drive create | Limit upload file size in MB |
+| `max_attachment_size_mb` | Gmail send | Limit attachment size in MB |
+| `require_body` | Gmail send | Require non-empty email body |
 
 Edit policies via the Admin UI or REST API:
 ```bash
@@ -565,10 +587,11 @@ gatekeeper key list                       # List all keys
 gatekeeper key revoke --prefix gkp_a1b2   # Revoke a key
 gatekeeper status                         # Show configuration status
 gatekeeper service install                # Install systemd user service
-gatekeeper service start                  # Start the service
+gatekeeper service enable                 # Enable and start the service
+gatekeeper service disable                # Stop and disable the service
 gatekeeper service restart                # Restart (after config changes)
 gatekeeper service status                 # Check service status
-gatekeeper service logs                   # View service logs
+gatekeeper service logs                   # View service logs (-f to follow)
 gatekeeper hosts list                     # List MCP allowed hosts
 gatekeeper hosts add <hostname>           # Add a host (Tailscale, LAN, etc.)
 gatekeeper hosts remove <hostname>        # Remove a host

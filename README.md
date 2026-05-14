@@ -146,10 +146,10 @@ Or install as a systemd service:
 
 ```bash
 gatekeeper service install    # Install systemd user service
-gatekeeper service enable     # Enable on boot
-gatekeeper service start      # Start the service
+gatekeeper service enable     # Enable and start the service
+gatekeeper service disable    # Stop and disable the service
 gatekeeper service status     # Check status
-gatekeeper service logs       # View logs
+gatekeeper service logs       # View logs (-f to follow)
 gatekeeper service restart    # Restart after config changes
 ```
 
@@ -191,7 +191,7 @@ Access the admin UI at `http://localhost:8080/admin/` with HTTP Basic Auth. The 
 | **Dashboard** | Overview — requests, keys, auth status |
 | **Modules** | Enable/disable modules (Drive, Gmail, Calendar) and toggle individual routes |
 | **API Keys** | Create, list, and revoke keys |
-| **Audit Log** | Searchable log of all requests |
+| **Audit Log** | Filterable log of all requests |
 | **Auth Status** | Google OAuth connection status |
 
 ## Using with AI Agents
@@ -252,7 +252,7 @@ curl -H "X-Gatekeeper-API-Key: gkp_your_key" \
 | `drive.files.list` | GET | ✅ On | max_results=50 |
 | `drive.files.get` | GET | ✅ On | — |
 | `drive.files.export` | GET | ✅ On | — |
-| `drive.files.list_shared` | GET | ✅ On | max_results=50, query_filter |
+| `drive.files.list_shared` | GET | ✅ On | max_results=50, query_filter=sharedWithMe |
 | `drive.files.generate_ids` | GET | ✅ On | — |
 | `drive.changes.list` | GET | ✅ On | — |
 | `drive.changes.get_start_page_token` | GET | ✅ On | — |
@@ -265,7 +265,7 @@ curl -H "X-Gatekeeper-API-Key: gkp_your_key" \
 | `drive.drives.list` | GET | ✅ On | — |
 | `drive.drives.get` | GET | ✅ On | — |
 | `drive.files.copy` | POST | ❌ Off | — |
-| `drive.files.create` | POST | ❌ Off | max file size |
+| `drive.files.create` | POST | ❌ Off | max_file_size_mb |
 | `drive.files.update` | PATCH | ❌ Off | — |
 | `drive.files.delete` | DELETE | ❌ Off | — |
 | `drive.files.trash` | POST | ❌ Off | — |
@@ -280,9 +280,9 @@ curl -H "X-Gatekeeper-API-Key: gkp_your_key" \
 
 | Route | Method | Default | Policy |
 |-------|--------|---------|--------|
-| `gmail.messages.list` | GET | ✅ On | max_results=50, exclude SPAM/TRASH |
+| `gmail.messages.list` | GET | ✅ On | max_results=50, allowed_labels, exclude SPAM/TRASH |
 | `gmail.messages.get` | GET | ✅ On | — |
-| `gmail.messages.send` | POST | ❌ Off | max_recipients=5 |
+| `gmail.messages.send` | POST | ❌ Off | max_recipients=5, max_attachment_size_mb=10, require_body |
 | `gmail.messages.modify` | POST | ❌ Off | — |
 | `gmail.messages.trash` | POST | ❌ Off | — |
 | `gmail.messages.untrash` | POST | ❌ Off | — |
@@ -293,7 +293,7 @@ curl -H "X-Gatekeeper-API-Key: gkp_your_key" \
 | `gmail.drafts.list` | GET | ✅ On | max_results=50 |
 | `gmail.drafts.get` | GET | ✅ On | — |
 | `gmail.drafts.create` | POST | ❌ Off | max_recipients=5 |
-| `gmail.drafts.update` | PUT | ❌ Off | max_recipients=5 |
+| `gmail.drafts.update` | PUT | ❌ Off | — |
 | `gmail.drafts.send` | POST | ❌ Off | max_recipients=5 |
 | `gmail.drafts.delete` | DELETE | ❌ Off | — |
 | `gmail.threads.list` | GET | ✅ On | — |
@@ -362,6 +362,9 @@ Each route has a JSON policy config that controls behavior:
 | `max_items` | Any | Cap array lengths in responses |
 | `query_filter` | Drive list | Force a Drive query parameter |
 | `max_recipients` | Gmail send/draft | Limit email recipients |
+| `max_file_size_mb` | Drive create | Limit upload file size |
+| `max_attachment_size_mb` | Gmail send | Limit attachment size |
+| `require_body` | Gmail send | Require non-empty email body |
 
 Edit policies via the admin UI or REST API:
 
@@ -386,13 +389,11 @@ gatekeeper key revoke --prefix gkp_a1b2   # Revoke a key
 gatekeeper status                         # Show configuration status
 gatekeeper service install                # Install systemd user service
 gatekeeper service uninstall              # Remove systemd user service
-gatekeeper service enable                 # Enable service on boot
-gatekeeper service disable                # Disable service on boot
-gatekeeper service start                  # Start the service
-gatekeeper service stop                   # Stop the service
+gatekeeper service enable                 # Enable and start the service
+gatekeeper service disable                 # Stop and disable the service
 gatekeeper service restart                # Restart the service
 gatekeeper service status                 # Show service status
-gatekeeper service logs                   # Show service logs
+gatekeeper service logs                   # Show service logs (-f to follow)
 gatekeeper hosts list                     # List MCP allowed hosts
 gatekeeper hosts add <hostname>           # Add a host (Tailscale, LAN, etc.)
 gatekeeper hosts remove <hostname>        # Remove a host
@@ -414,7 +415,7 @@ All configuration via environment variables (prefix `GATEKEEPER_`) or `.env` fil
 | `GATEKEEPER_ADMIN_PASSWORD` | *(auto-generated)* | Admin UI password |
 | `GATEKEEPER_API_KEY_PREFIX` | `gkp_` | Prefix for API keys |
 | `GATEKEEPER_MCP_ENABLED` | `true` | Enable MCP server |
-| `GATEKEEPER_MCP_ALLOWED_HOSTS` | `["localhost:{port}", "127.0.0.1:{port}"]` | Allowed hosts for MCP connections (JSON array, supports `{port}` placeholder) |
+| `GATEKEEPER_MCP_ALLOWED_HOSTS` | `[]` (localhost/127.0.0.1 always allowed) | JSON array of additional hosts for MCP connections (use `gatekeeper hosts add` CLI) |
 | `GATEKEEPER_RATE_LIMIT_PER_MINUTE` | `120` | Rate limit per minute per API key |
 | `GATEKEEPER_GOOGLE_CLIENT_ID` | *(required)* | Google OAuth client ID |
 | `GATEKEEPER_GOOGLE_CLIENT_SECRET` | *(required)* | Google OAuth client secret |
@@ -422,7 +423,8 @@ All configuration via environment variables (prefix `GATEKEEPER_`) or `.env` fil
 | `GATEKEEPER_DRIVE_ENABLED` | `false` | Enable Drive module |
 | `GATEKEEPER_GMAIL_ENABLED` | `false` | Enable Gmail module |
 | `GATEKEEPER_CALENDAR_ENABLED` | `false` | Enable Calendar module |
-| `GATEKEEPER_CORS_ORIGINS` | `["http://localhost:8080"]` | CORS allowed origins |
+| `GATEKEEPER_DISPLAY_TIMEZONE` | `America/Chicago` | IANA timezone for timestamp display |
+| `GATEKEEPER_CORS_ORIGINS` | `["http://localhost:8080","http://127.0.0.1:8080"]` | CORS allowed origins |
 
 **Auto-generated secrets** are persisted in `gatekeeper_secrets.json` so they survive restarts. This file is created with `chmod 600` permissions. **Add it to `.gitignore`** (already in the default `.gitignore`).
 
@@ -518,7 +520,7 @@ gatekeeper/
 │       ├── drive/             # Drive module (27 routes)
 │       ├── gmail/             # Gmail module (37 routes)
 │       └── calendar/          # Calendar module (26 routes)
-├── tests/                      # 228+ tests
+├── tests/                      # Test suite
 ├── Dockerfile                  # Multi-arch Podman/Docker build
 ├── docker-compose.yml          # Podman Compose config
 ├── install.sh                  # One-line install script
