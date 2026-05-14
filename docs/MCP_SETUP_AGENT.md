@@ -203,4 +203,5 @@ These require HTTP Basic Auth (admin credentials). This is by design — Gatekee
 | "Invalid API key" | Verify the full key (including `gkp_` prefix) is in the `X-Gatekeeper-API-Key` header or `api_key` parameter |
 | "Route X is disabled" (403) | Ask your admin to enable the route. You cannot bypass this. |
 | "Google credentials not configured" | Tell the admin to run `gatekeeper auth` |
+| 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT | The Google OAuth token doesn't have the required scopes. The admin needs to add the missing scopes in the Google Cloud Console's **OAuth consent screen → Data Access**, then re-run `gatekeeper auth`. Common missing scopes: `gmail.settings.basic` (for filters, forwarding, labels), `gmail.compose` (for drafts). See the scopes table in SETUP.md. |
 | Connection drops / timeouts | SSE connections can time out. Increase `timeout` to 120 seconds. Most agents reconnect automatically. |

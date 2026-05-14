@@ -109,28 +109,82 @@ GATEKEEPER_DEBUG=false                                       # Debug mode
 
 ## Step 3 — Set up Google OAuth
 
-This is a one-time setup in the Google Cloud Console.
+This is a one-time setup in the Google Cloud Console. You'll configure four things: enable APIs, create OAuth credentials, configure the consent screen (including scopes), and add test users.
+
+### 3a — Create or select a project
 
 1. Go to **[Google Cloud Console](https://console.cloud.google.com/)**
-2. Create a new project (or select an existing one)
-3. Enable the APIs you need:
-   - **Drive API** → Library → search "Google Drive API" → Enable
-   - **Gmail API** → Library → search "Gmail API" → Enable
-   - **Calendar API** → Library → search "Google Calendar API" → Enable
-4. Go to **APIs & Services → Credentials**
-5. Click **Create Credentials → OAuth 2.0 Client ID**
-6. Application type: **Desktop app**
-7. Copy the **Client ID** and **Client Secret** into your `.env`:
+2. Create a new project or select an existing one
+
+### 3b — Enable the Google APIs
+
+1. Go to **[API Library](https://console.cloud.google.com/apis/library)** (☰ menu → **APIs & Services** → **Library**)
+2. Search for and enable each API you need:
+   - **Google Drive API** — search "Google Drive API" → click **Enable**
+   - **Gmail API** — search "Gmail API" → click **Enable**
+   - **Google Calendar API** — search "Google Calendar API" → click **Enable**
+
+Enable all three if you want full Gatekeeper coverage. You can skip APIs for modules you've disabled.
+
+### 3c — Create OAuth credentials
+
+1. Go to **[Google Auth platform → Clients](https://console.cloud.google.com/auth/clients)** (☰ menu → **Google Auth platform** → **Clients**)
+2. Click **Create Client**
+3. Application type: **Desktop app**
+4. Give it a name (e.g., "Gatekeeper")
+5. Click **Create**
+6. Copy the **Client ID** and **Client Secret** into your `.env`:
    ```env
    GATEKEEPER_GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
    GATEKEEPER_GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxx
    ```
-8. Go to **OAuth consent screen**:
-   - Set publishing status to **Testing** (not Production)
-   - Add your Google account email as a **Test User**
-   - This is required — Google blocks access until you add yourself
 
-> **⚠️ Important**: If you skip adding yourself as a Test User, the auth flow will fail with a "This app isn't verified" error that blocks you out.
+> **Note**: If you don't see "Google Auth platform" in the menu, use **APIs & Services → Credentials** instead — click **Create Credentials → OAuth 2.0 Client ID**. Google is rolling out the new navigation gradually.
+
+### 3d — Configure the OAuth consent screen and scopes
+
+This step is **critical** — if you skip adding scopes, `gatekeeper auth` will fail with insuffient scope errors.
+
+1. Go to **[Google Auth platform → Branding](https://console.cloud.google.com/auth/branding)** (☰ menu → **Google Auth platform** → **Branding**)
+2. If you see "Google Auth platform not configured yet", click **Get Started**:
+   - **App name**: enter a name (e.g., "Gatekeeper")
+   - **User support email**: choose your email
+   - Click **Next**
+   - **Audience**: select **External** (so you can add test users)
+   - Click **Next**
+   - **Contact email**: enter your email
+   - Click **Next**
+   - Review the policy, check **I agree**, click **Continue**, then **Create**
+
+3. Add the **OAuth scopes** that Gatekeeper needs:
+   - Click **Data Access** in the left sidebar (or go to **[Google Auth platform → Data Access](https://console.cloud.google.com/auth/data-access)**)
+   - Click **Add or Remove Scopes**
+   - Add all of these scopes (or only the ones for modules you've enabled):
+
+   | Module | Scope | What it allows |
+   |--------|-------|----------------|
+   | **Drive** | `https://www.googleapis.com/auth/drive` | Read and write Drive files |
+   | **Gmail** | `https://www.googleapis.com/auth/gmail.modify` | Read, modify, and trash messages |
+   | **Gmail** | `https://www.googleapis.com/auth/gmail.send` | Send messages |
+   | **Gmail** | `https://www.googleapis.com/auth/gmail.compose` | Create and edit drafts |
+   | **Gmail** | `https://www.googleapis.com/auth/gmail.settings.basic` | Manage labels, filters, forwarding |
+   | **Calendar** | `https://www.googleapis.com/auth/calendar` | Read and write calendars |
+   | **Calendar** | `https://www.googleapis.com/auth/calendar.events` | Read and write events |
+
+   > **How to find each scope**: In the "Add or Remove Scopes" dialog, search by keyword — type "drive" for the Drive scope, "gmail" for Gmail scopes, "calendar" for Calendar scopes. The scopes above are marked as **Sensitive** or **Restricted** by Google, so they'll appear in the Sensitive/Restricted sections.
+
+   - Click **Save**
+
+4. Add yourself as a **Test User**:
+   - Click **Audience** in the left sidebar (or go to **[Google Auth platform → Audience](https://console.cloud.google.com/auth/audience)**)
+   - Scroll to **Test users** → click **Add users**
+   - Enter your Google account email → click **Save**
+
+> **⚠️ Critical**:
+> - If you skip adding scopes, `gatekeeper auth` will only get basic read-only access and most API calls will fail with `403 ACCESS_TOKEN_SCOPE_INSUFFICIENT`.
+> - If you skip adding yourself as a Test User, the auth flow will fail with "This app isn't verified" and block you out.
+> - After changing scopes or test users, you must re-run `gatekeeper auth` to get a new token with the updated permissions.
+
 
 ---
 

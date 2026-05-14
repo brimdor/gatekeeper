@@ -12,6 +12,22 @@ Before connecting an agent, Gatekeeper must be running and authenticated with Go
 2. Google OAuth is completed (`gatekeeper auth`)
 3. You have at least one API key (`gatekeeper key list`)
 
+### OAuth scopes required
+
+Gatekeeper requests scopes based on which modules are enabled. For full coverage (all three modules), the following 7 scopes must be added to your Google Cloud project's **OAuth consent screen → Data Access**:
+
+| Module | Scope | What it allows |
+|--------|-------|----------------|
+| **Drive** | `https://www.googleapis.com/auth/drive` | Read and write Drive files |
+| **Gmail** | `https://www.googleapis.com/auth/gmail.modify` | Read, modify, and trash messages |
+| **Gmail** | `https://www.googleapis.com/auth/gmail.send` | Send messages |
+| **Gmail** | `https://www.googleapis.com/auth/gmail.compose` | Create and edit drafts |
+| **Gmail** | `https://www.googleapis.com/auth/gmail.settings.basic` | Manage labels, filters, forwarding |
+| **Calendar** | `https://www.googleapis.com/auth/calendar` | Read and write calendars |
+| **Calendar** | `https://www.googleapis.com/auth/calendar.events` | Read and write events |
+
+> **⚠️ If you skip adding scopes** to the consent screen, `gatekeeper auth` will succeed but you'll only get basic read-only access. Most API calls will then fail with `403 ACCESS_TOKEN_SCOPE_INSUFFICIENT`. See [SETUP.md](SETUP.md#3d--configure-the-oauth-consent-screen-and-scopes) for detailed setup instructions.
+
 Verify with a health check:
 ```bash
 curl http://localhost:8080/health
@@ -199,5 +215,6 @@ If a route is disabled in the admin UI, the tool still appears in `list_tools` b
 | Agent gets "Route X is disabled" (403) | Go to Admin UI → Routes → enable the route |
 | Agent can't connect | Check `GATEKEEPER_MCP_ALLOWED_HOSTS` includes the agent's origin; verify Gatekeeper is listening on the right interface (`0.0.0.0` for LAN) |
 | Tools appear but calls fail with 401 | Google OAuth token may need refresh — run `gatekeeper auth` again |
+| 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT | Missing OAuth scopes. Add the required scopes in the Google Cloud Console's **OAuth consent screen → Data Access** (see the scopes table above), then re-run `gatekeeper auth` |
 | MCP tools not appearing | Verify `GATEKEEPER_MCP_ENABLED=true` in `.env` (default is true) |
 | Connection drops after a while | SSE connections can time out — this is normal, the agent reconnects automatically |
