@@ -290,10 +290,13 @@ def mount_mcp_server(app: FastAPI) -> None:
         _mcp_instance = mcp
 
         # Get the Starlette SSE app from FastMCP
-        # mount_path="/mcp" makes the SSE and message paths relative to /mcp
-        starlette_app = mcp.sse_app(mount_path="/mcp")
+        # No mount_path here — FastAPI's app.mount("/mcp", ...) already
+        # provides the /mcp prefix. Setting mount_path="/mcp" would cause
+        # the SSE client to POST to /mcp/mcp/messages/ (double path).
+        starlette_app = mcp.sse_app()
 
         # Mount the Starlette app as a sub-app under FastAPI
+        # Routes become: GET /mcp/sse, POST /mcp/messages/
         app.mount("/mcp", starlette_app)
 
         logger.info("MCP SSE server mounted at /mcp")
