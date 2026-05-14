@@ -497,7 +497,10 @@ class TestDesktopAuthFlow:
                     # Remove DISPLAY and WAYLAND_DISPLAY to trigger manual flow
                     for key in ["DISPLAY", "WAYLAND_DISPLAY"]:
                         os.environ.pop(key, None)
-                    with patch("gatekeeper.google_client._read_from_terminal", return_value=redirect_url_with_code):
+                    with patch(
+                        "gatekeeper.google_client._read_from_terminal",
+                        return_value=redirect_url_with_code,
+                    ):
                         mgr = GoogleCredentialManager(token_path=token_path)
                         result = mgr.start_desktop_auth_flow(
                             scopes=["https://www.googleapis.com/auth/drive.readonly"]
@@ -587,7 +590,7 @@ class TestReadFromTerminal:
 
         with patch("sys.stdin") as mock_stdin, \
              patch("builtins.open", return_value=mock_tty_file) as mock_open, \
-             patch("sys.stdout") as mock_stdout:
+             patch("sys.stdout"):
             mock_stdin.isatty.return_value = False
             result = _read_from_terminal("prompt: ")
             assert result == "hello from dev/tty\n"

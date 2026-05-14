@@ -2,28 +2,20 @@
 
 from __future__ import annotations
 
-import os
-import textwrap
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from gatekeeper.service import (
     SERVICE_TEMPLATE,
     SERVICE_UNIT,
-    SYSTEMD_USER_DIR,
     _is_systemd_available,
     _resolve_exec_path,
     _resolve_work_dir,
-    _unit_path,
     disable_service,
     enable_service,
     install_service,
-    service_status,
     uninstall_service,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -53,13 +45,11 @@ class TestUnitPath:
 
     def test_unit_path_under_systemd_dir(self, tmp_path):
         """Unit file should live under ~/.config/systemd/user/."""
-        with patch("gatekeeper.service.SYSTEMD_USER_DIR", tmp_path / "systemd"):
-            # _unit_path uses the module-level constant, so we need to
-            # patch it where it's used
-            with patch("gatekeeper.service._unit_path", return_value=tmp_path / "systemd" / SERVICE_UNIT):
-                result = Path(str(tmp_path / "systemd" / SERVICE_UNIT))
-                assert result.name == "gatekeeper.service"
-                assert "systemd" in str(result)
+        expected_unit = tmp_path / "systemd" / SERVICE_UNIT
+        with patch("gatekeeper.service._unit_path", return_value=expected_unit):
+            result = Path(str(expected_unit))
+            assert result.name == "gatekeeper.service"
+            assert "systemd" in str(result)
 
 
 class TestServiceTemplate:
@@ -123,7 +113,6 @@ class TestInstallService:
             assert "WorkingDirectory=/home/user/gatekeeper" in content
 
             # Verify systemctl was called correctly
-            calls = [str(c) for c in mock_ctl.call_args_list]
             assert mock_ctl.call_count == 3  # daemon-reload, enable, start
 
 
@@ -147,9 +136,8 @@ class TestUninstallService:
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("gatekeeper.service.SYSTEMD_USER_DIR", sysd_dir), \
-             patch("gatekeeper.service.SYSTEMD_USER_DIR", sysd_dir), \
              patch("gatekeeper.service._unit_path", return_value=unit_path), \
-             patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl:
+             patch("gatekeeper.service._systemctl", return_value=mock_result):
             result = uninstall_service()
             assert result is True
             assert not unit_path.exists()

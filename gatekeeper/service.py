@@ -10,7 +10,6 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 logger = __import__("logging").getLogger(__name__)
@@ -162,9 +161,9 @@ def install_service(skip_prompt: bool = False) -> bool:
     print(f"   ExecStart: {exec_path} serve")
     print()
     print("   Useful commands:")
-    print(f"     systemctl --user status gatekeeper")
-    print(f"     journalctl --user -u gatekeeper -f")
-    print(f"     gatekeeper service status")
+    print("     systemctl --user status gatekeeper")
+    print("     journalctl --user -u gatekeeper -f")
+    print("     gatekeeper service status")
     return True
 
 
