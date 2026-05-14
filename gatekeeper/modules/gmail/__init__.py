@@ -329,6 +329,215 @@ class GmailModule(GoogleModule):
                 },
                 default_policy={},
             ),
+            # ── Filters (off by default) ──
+            RouteDef(
+                route_id="gmail.filters.list",
+                method="GET",
+                google_path="/gmail/v1/users/me/settings/filters",
+                description="List all email filters",
+                input_schema={"type": "object", "properties": {}},
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.filters.get",
+                method="GET",
+                google_path="/gmail/v1/users/me/settings/filters/{filterId}",
+                description="Get details of a specific filter",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "filter_id": {
+                            "type": "string",
+                            "description": "The ID of the filter to retrieve",
+                        },
+                    },
+                    "required": ["filter_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.filters.create",
+                method="POST",
+                google_path="/gmail/v1/users/me/settings/filters",
+                description="Create a new email filter with criteria and actions",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Gmail search query for the filter criteria (e.g., 'from:alice@example.com')",
+                        },
+                        "label_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Label IDs to apply to matching messages",
+                        },
+                        "forward": {
+                            "type": "string",
+                            "description": "Email address to forward matching messages to",
+                        },
+                        "mark_as_read": {
+                            "type": "boolean",
+                            "description": "Whether to mark matching messages as read",
+                        },
+                        "mark_as_important": {
+                            "type": "boolean",
+                            "description": "Whether to mark matching messages as important",
+                        },
+                        "archive": {
+                            "type": "boolean",
+                            "description": "Whether to archive matching messages (skip inbox)",
+                        },
+                        "delete": {
+                            "type": "boolean",
+                            "description": "Whether to send matching messages to trash",
+                        },
+                        "star": {
+                            "type": "boolean",
+                            "description": "Whether to star matching messages",
+                        },
+                    },
+                    "required": ["query"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.filters.update",
+                method="PATCH",
+                google_path="/gmail/v1/users/me/settings/filters/{filterId}",
+                description="Update an existing filter's criteria or actions",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "filter_id": {
+                            "type": "string",
+                            "description": "The ID of the filter to update",
+                        },
+                        "query": {
+                            "type": "string",
+                            "description": "New Gmail search query for the filter criteria",
+                        },
+                        "label_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "New label IDs to apply",
+                        },
+                        "mark_as_read": {
+                            "type": "boolean",
+                            "description": "Whether to mark matching messages as read",
+                        },
+                        "mark_as_important": {
+                            "type": "boolean",
+                            "description": "Whether to mark matching messages as important",
+                        },
+                        "archive": {
+                            "type": "boolean",
+                            "description": "Whether to archive matching messages",
+                        },
+                    },
+                    "required": ["filter_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.filters.delete",
+                method="DELETE",
+                google_path="/gmail/v1/users/me/settings/filters/{filterId}",
+                description="Delete an email filter",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "filter_id": {
+                            "type": "string",
+                            "description": "The ID of the filter to delete",
+                        },
+                    },
+                    "required": ["filter_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Labels: write (off by default) ──
+            RouteDef(
+                route_id="gmail.labels.create",
+                method="POST",
+                google_path="/gmail/v1/users/me/labels",
+                description="Create a new custom label",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Display name of the label",
+                        },
+                        "label_list_visibility": {
+                            "type": "string",
+                            "description": "Whether the label is visible in the label list: 'labelShow' or 'labelHide'",
+                            "default": "labelShow",
+                        },
+                        "message_list_visibility": {
+                            "type": "string",
+                            "description": "Whether messages with this label are visible in the message list: 'show' or 'hide'",
+                            "default": "show",
+                        },
+                    },
+                    "required": ["name"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.labels.update",
+                method="PATCH",
+                google_path="/gmail/v1/users/me/labels/{labelId}",
+                description="Update a label (rename, change visibility, color)",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "label_id": {
+                            "type": "string",
+                            "description": "The ID of the label to update",
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "New display name for the label",
+                        },
+                        "label_list_visibility": {
+                            "type": "string",
+                            "description": "Whether the label is visible in the label list: 'labelShow' or 'labelHide'",
+                        },
+                        "message_list_visibility": {
+                            "type": "string",
+                            "description": "Whether messages with this label are visible in the message list: 'show' or 'hide'",
+                        },
+                    },
+                    "required": ["label_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="gmail.labels.delete",
+                method="DELETE",
+                google_path="/gmail/v1/users/me/labels/{labelId}",
+                description="Delete a custom label",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "label_id": {
+                            "type": "string",
+                            "description": "The ID of the label to delete",
+                        },
+                    },
+                    "required": ["label_id"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
         ]
 
 
