@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import threading
 import time
 from pathlib import Path
@@ -17,6 +18,36 @@ from gatekeeper.config import settings
 from gatekeeper.encryption import decrypt_value, encrypt_value
 
 logger = logging.getLogger(__name__)
+
+
+def _read_from_terminal(prompt: str) -> str:
+    """Read a line from the user's terminal, even when stdin is piped.
+
+    When running inside an install script or heredoc, sys.stdin may be
+    redirected away from the user's terminal. In that case, ``input()``
+    immediately hits EOF. This function opens ``/dev/tty`` directly —
+    which always points to the controlling terminal — so the user can
+    still type even when stdin is a pipe.
+
+    Falls back to ``input()`` on systems without ``/dev/tty`` (Windows)
+    or in truly detached environments (e.g., systemd services).
+    """
+    if sys.stdin.isatty():
+        # Normal interactive terminal — input() works fine.
+        return input(prompt)
+
+    try:
+        # stdin is piped (install script, heredoc, etc.) — open the
+        # controlling terminal directly.
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
+        with open("/dev/tty", "r") as tty:
+            return tty.readline()
+    except OSError:
+        # /dev/tty doesn't exist (Windows) or can't be opened (detached).
+        # Fall back to input() — may raise EOFError if truly headless.
+        return input(prompt)
+
 
 # Google OAuth endpoints
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/auth"
@@ -456,7 +487,12 @@ class GoogleCredentialManager:
             print("\n  4. Copy the FULL URL from your browser's address bar and")
             print("     paste it below:\n")
 
-            redirect_url = input("  Paste the redirect URL: ").strip()
+            # Read from the terminal directly, even when stdin is piped
+            # (e.g., install script heredocs). /dev/tty always points to
+            # the controlling terminal, so we can read user input there.
+            # Fall back to regular input() if /dev/tty isn't available
+            # (e.g., Windows or truly detached processes).
+            redirect_url = _read_from_terminal("  Paste the redirect URL: ").strip()
 
             if not redirect_url:
                 print("\n❌ No URL provided — authorization cancelled.\n")

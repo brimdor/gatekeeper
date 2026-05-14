@@ -488,7 +488,7 @@ class TestDesktopAuthFlow:
             orig_class = google_auth_oauthlib.flow.InstalledAppFlow
             google_auth_oauthlib.flow.InstalledAppFlow = mock_iapp
 
-            # Mock input() to return a redirect URL with a code
+            # Mock _read_from_terminal to return a redirect URL with a code
             redirect_url_with_code = "http://localhost?code=test-auth-code&scope=drive.readonly"
 
             try:
@@ -497,7 +497,7 @@ class TestDesktopAuthFlow:
                     # Remove DISPLAY and WAYLAND_DISPLAY to trigger manual flow
                     for key in ["DISPLAY", "WAYLAND_DISPLAY"]:
                         os.environ.pop(key, None)
-                    with patch("builtins.input", return_value=redirect_url_with_code):
+                    with patch("gatekeeper.google_client._read_from_terminal", return_value=redirect_url_with_code):
                         mgr = GoogleCredentialManager(token_path=token_path)
                         result = mgr.start_desktop_auth_flow(
                             scopes=["https://www.googleapis.com/auth/drive.readonly"]
@@ -560,3 +560,47 @@ class TestStartAuthFlow:
                 mock_device.assert_called_once()
         finally:
             gatekeeper.google_client.settings = orig
+
+
+class TestReadFromTerminal:
+    """Tests for _read_from_terminal helper — stdin pipe and /dev/tty fallback."""
+
+    def test_read_from_tty_stdin(self):
+        """When stdin is a TTY, input() is used directly."""
+        from gatekeeper.google_client import _read_from_terminal
+
+        with patch("sys.stdin") as mock_stdin, \
+             patch("builtins.input", return_value="hello from tty") as mock_input:
+            mock_stdin.isatty.return_value = True
+            result = _read_from_terminal("prompt: ")
+            assert result == "hello from tty"
+            mock_input.assert_called_once_with("prompt: ")
+
+    def test_read_from_dev_tty_when_stdin_piped(self):
+        """When stdin is piped (not a TTY), /dev/tty should be used."""
+        from gatekeeper.google_client import _read_from_terminal
+
+        mock_tty_file = MagicMock()
+        mock_tty_file.readline.return_value = "hello from dev/tty\n"
+        mock_tty_file.__enter__ = lambda s: mock_tty_file
+        mock_tty_file.__exit__ = MagicMock(return_value=False)
+
+        with patch("sys.stdin") as mock_stdin, \
+             patch("builtins.open", return_value=mock_tty_file) as mock_open, \
+             patch("sys.stdout") as mock_stdout:
+            mock_stdin.isatty.return_value = False
+            result = _read_from_terminal("prompt: ")
+            assert result == "hello from dev/tty\n"
+            mock_open.assert_called_once_with("/dev/tty", "r")
+
+    def test_read_from_terminal_fallback_on_oserror(self):
+        """When /dev/tty can't be opened, fall back to input()."""
+        from gatekeeper.google_client import _read_from_terminal
+
+        with patch("sys.stdin") as mock_stdin, \
+             patch("builtins.input", return_value="fallback input") as mock_input, \
+             patch("builtins.open", side_effect=OSError("no /dev/tty")):
+            mock_stdin.isatty.return_value = False
+            result = _read_from_terminal("prompt: ")
+            assert result == "fallback input"
+            mock_input.assert_called_once_with("prompt: ")
