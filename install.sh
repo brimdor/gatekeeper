@@ -197,20 +197,20 @@ setup_env() {
     printf "  Gatekeeper needs Google OAuth credentials to access Google APIs.\n"
     printf "  If you don't have them yet, set them up now:\n"
     printf "\n"
-    printf "    1. Open: %s\n" "${CYAN}https://console.cloud.google.com/apis/credentials${NC}"
+    printf "    1. Open: ${CYAN}https://console.cloud.google.com/apis/credentials${NC}\n"
     printf "    2. Create or select a project\n"
     printf "    3. Enable these APIs:\n"
     printf "       • Google Drive API\n"
     printf "       • Gmail API\n"
     printf "       • Google Calendar API\n"
-    printf "    4. Click %s\n" "${BOLD}Create Credentials → OAuth 2.0 Client ID${NC}"
-    printf "    5. Application type: %s\n" "${BOLD}Desktop app${NC}"
+    printf "    4. Click ${BOLD}Create Credentials → OAuth 2.0 Client ID${NC}\n"
+    printf "    5. Application type: ${BOLD}Desktop app${NC}\n"
     printf "    6. Copy the Client ID and Client Secret\n"
-    printf "    7. Go to %s\n" "${BOLD}OAuth consent screen${NC}"
-    printf "       • Set publishing status to %s\n" "${BOLD}Testing${NC}"
-    printf "       • Add your email as a %s\n" "${BOLD}Test User${NC}"
+    printf "    7. Go to ${BOLD}OAuth consent screen${NC}\n"
+    printf "       • Set publishing status to ${BOLD}Testing${NC}\n"
+    printf "       • Add your email as a ${BOLD}Test User${NC}\n"
     printf "\n"
-    printf "  %s\n" "${YELLOW}⚠ Your email must be a Test User or auth will fail.${NC}"
+    printf "  ${YELLOW}⚠ Your email must be a Test User or auth will fail.${NC}\n"
     printf "\n"
 
     local google_client_id=""
@@ -324,14 +324,14 @@ run_auth() {
 
     if [[ -z "${GOOGLE_CLIENT_ID:-}" ]] || [[ -z "${GOOGLE_CLIENT_SECRET:-}" ]]; then
         warn "Google OAuth credentials not configured — skipping auth."
-        printf "  Run %s when you've added credentials to .env\n" "${CYAN}gatekeeper auth${NC}"
+        printf "  Run ${CYAN}gatekeeper auth${NC} when you've added credentials to .env\n"
         return
     fi
 
     if tty_ask_yn "Authorize with Google now?" "y"; then
         gatekeeper auth
     else
-        printf "  Run %s when you're ready.\n" "${CYAN}gatekeeper auth${NC}"
+        printf "  Run ${CYAN}gatekeeper auth${NC} when you're ready.\n"
     fi
 }
 
@@ -350,28 +350,28 @@ print_success() {
     printf "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
     printf "\n"
     printf "  Start the server:\n"
-    printf "    %s\n" "${CYAN}gatekeeper serve${NC}"
+    printf "    ${CYAN}gatekeeper serve${NC}\n"
     printf "\n"
     printf "  Admin UI:\n"
-    printf "    %s\n" "${CYAN}http://localhost:${port}/admin/${NC}"
+    printf "    ${CYAN}http://localhost:${port}/admin/${NC}\n"
     if [[ -n "$admin_pass" ]]; then
-        printf "    %s\n" "${YELLOW}Username: admin    Password: ${admin_pass}${NC}"
+        printf "    ${YELLOW}Username: admin    Password: ${admin_pass}${NC}\n"
     fi
     printf "\n"
     printf "  MCP endpoint (for AI agents):\n"
-    printf "    %s\n" "${CYAN}http://localhost:${port}/mcp/sse${NC}"
+    printf "    ${CYAN}http://localhost:${port}/mcp/sse${NC}\n"
     printf "\n"
     printf "  Useful commands:\n"
-    printf "    %-35s %s\n" "${CYAN}gatekeeper status${NC}" "— Show configuration"
-    printf "    %-35s %s\n" "${CYAN}gatekeeper key create --name my-agent${NC}" "— Create API key"
-    printf "    %-35s %s\n" "${CYAN}gatekeeper key list${NC}" "— List API keys"
-    printf "    %-35s %s\n" "${CYAN}gatekeeper auth${NC}" "— (Re-)authorize with Google"
+    printf "    ${CYAN}gatekeeper status${NC}          — Show configuration\n"
+    printf "    ${CYAN}gatekeeper key create --name my-agent${NC}  — Create API key\n"
+    printf "    ${CYAN}gatekeeper key list${NC}        — List API keys\n"
+    printf "    ${CYAN}gatekeeper auth${NC}            — (Re-)authorize with Google\n"
     printf "\n"
-    printf "  Config file: %s\n" "${CYAN}.env${NC}"
-    printf "  Secrets:     %s  (auto-generated)\n" "${CYAN}gatekeeper_secrets.json${NC}"
-    printf "  Database:    %s  (auto-generated)\n" "${CYAN}gatekeeper.db${NC}"
+    printf "  Config file: ${CYAN}.env${NC}\n"
+    printf "  Secrets:     ${CYAN}gatekeeper_secrets.json${NC}  (auto-generated)\n"
+    printf "  Database:    ${CYAN}gatekeeper.db${NC}  (auto-generated)\n"
     printf "\n"
-    printf "  %s\n" "${YELLOW}⚠ Save the admin password — it's only shown once!${NC}"
+    printf "  ${YELLOW}⚠ Save the admin password — it's only shown once!${NC}\n"
     printf "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 }
 

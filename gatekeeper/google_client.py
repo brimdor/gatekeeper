@@ -202,7 +202,27 @@ class GoogleCredentialManager:
                         "scope": " ".join(scopes),
                     },
                 )
-                response.raise_for_status()
+                if response.status_code != 200:
+                    error_detail = response.text
+                    logger.error(
+                        "Device code request failed: %s %s — Response: %s",
+                        response.status_code,
+                        response.reason_phrase,
+                        error_detail,
+                    )
+                    print(f"\n❌ ERROR: Failed to get device code ({response.status_code})")
+                    print(f"   Google responded: {error_detail}")
+                    # Provide actionable hints
+                    if response.status_code == 401:
+                        print("\n   Common causes of 401 Unauthorized:")
+                        print("   1. Client ID or Client Secret is incorrect or truncated")
+                        print("   2. OAuth consent screen is not configured — go to:")
+                        print("      https://console.cloud.google.com/apis/credentials/consent")
+                        print("      → Set Publishing status to 'Testing'")
+                        print("      → Add your Google email as a Test User")
+                        print("   3. OAuth client type must be")
+                        print("      'Desktop app' (not 'Web application')")
+                    return None
                 device_data = response.json()
         except httpx.HTTPError as e:
             logger.error(f"Device code request failed: {e}")
