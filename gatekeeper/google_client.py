@@ -194,11 +194,13 @@ class GoogleCredentialManager:
         # Step 1: Get device code
         try:
             with httpx.Client(timeout=30) as client:
+                # Device code endpoint only accepts client_id+scope
+                # for Desktop (public) clients — client_secret here
+                # causes "invalid_client / Invalid client type"
                 response = client.post(
                     GOOGLE_DEVICE_CODE_URL,
                     data={
                         "client_id": settings.google_client_id,
-                        "client_secret": settings.google_client_secret,
                         "scope": " ".join(scopes),
                     },
                 )
@@ -215,13 +217,14 @@ class GoogleCredentialManager:
                     # Provide actionable hints
                     if response.status_code == 401:
                         print("\n   Common causes of 401 Unauthorized:")
-                        print("   1. Client ID or Client Secret is incorrect or truncated")
-                        print("   2. OAuth consent screen is not configured — go to:")
+                        print("   1. OAuth client type must be 'Desktop app'")
+                        print("      (not 'Web application') — Web clients don't")
+                        print("      support the device code flow")
+                        print("   2. OAuth consent screen not configured — go to:")
                         print("      https://console.cloud.google.com/apis/credentials/consent")
                         print("      → Set Publishing status to 'Testing'")
                         print("      → Add your Google email as a Test User")
-                        print("   3. OAuth client type must be")
-                        print("      'Desktop app' (not 'Web application')")
+                        print("   3. Client ID is incorrect or truncated")
                     return None
                 device_data = response.json()
         except httpx.HTTPError as e:
