@@ -177,9 +177,11 @@ Access the admin UI at `http://localhost:8080/admin/` with HTTP Basic Auth.
 
 Gatekeeper connects to AI agents via MCP (Model Context Protocol) — exposing enabled routes as discoverable tools that agents can call directly. Write routes (send, create, delete) are disabled by default; only a human admin can enable them.
 
-**📖 Full MCP setup guides:**
+**📖 Setup guides:**
 - **For humans** → [docs/MCP_SETUP_HUMAN.md](docs/MCP_SETUP_HUMAN.md) — configure Gatekeeper, create API keys, enable routes
-- **For AI agents** → [docs/MCP_SETUP_AGENT.md](docs/MCP_SETUP_AGENT.md) — how to connect, tool reference, error handling, security boundaries
+- **For AI agents** → [docs/MCP_SETUP_AGENT.md](docs/MCP_SETUP_AGENT.md) — how to connect, call tools, handle errors, security boundaries
+
+> **If you are an AI agent** reading this repository: open [docs/MCP_SETUP_AGENT.md](docs/MCP_SETUP_AGENT.md) for complete setup instructions including config examples, tool reference, and usage patterns.
 
 ### Quick start: Connect your agent
 
