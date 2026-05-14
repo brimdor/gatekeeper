@@ -9,7 +9,9 @@ import base64
 import bcrypt
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from gatekeeper.db import Base
 from gatekeeper.models import ApiKey
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -245,3 +247,157 @@ class TestApiKeyDB:
             select(func.count(ApiKey.id)).where(ApiKey.is_active == True)  # noqa: E712
         )
         assert active_count == 1
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 6. Restart-safety tests (ensure_default_key preserves existing keys)
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+class TestEnsureDefaultKeyRestartSafety:
+    """Tests that ensure_default_key never revokes, invalidates, or replaces
+    existing API keys — a service restart must preserve all keys.
+
+    Uses a single shared session pattern (StaticPool + single connection)
+    to ensure all operations see the same data in an in-memory SQLite DB.
+    """
+
+    @pytest.fixture(autouse=True)
+    async def _setup_db(self):
+        """Create a shared in-memory DB and patch engine + async_session.
+
+        Patches both gatekeeper.db and gatekeeper.main because main.py
+        imports async_session as a module-level binding.
+        """
+        import gatekeeper.db
+        import gatekeeper.main
+        from sqlalchemy.pool import StaticPool
+
+        engine = create_async_engine(
+            "sqlite+aiosqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+            echo=False,
+            future=True,
+        )
+        # Create tables
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        # Use a single shared connection for all sessions so data is visible
+        # across session boundaries in in-memory SQLite
+        test_session_factory = async_sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False,
+        )
+
+        # Patch both the db module AND main module (which imports async_session
+        # as a module-level name via `from gatekeeper.db import async_session`)
+        original_engine = gatekeeper.db.engine
+        original_async_session = gatekeeper.db.async_session
+        original_main_async_session = gatekeeper.main.async_session
+        gatekeeper.db.engine = engine
+        gatekeeper.db.async_session = test_session_factory
+        gatekeeper.main.async_session = test_session_factory
+        self._session_factory = test_session_factory
+        yield
+        gatekeeper.db.engine = original_engine
+        gatekeeper.db.async_session = original_async_session
+        gatekeeper.main.async_session = original_main_async_session
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+        await engine.dispose()
+
+    async def test_ensure_default_key_creates_when_empty(self):
+        """When the API key table is empty, ensure_default_key creates one."""
+        from gatekeeper.main import ensure_default_key
+
+        await ensure_default_key()
+
+        # Verify inside the same function call stack — ensure_default_key
+        # uses async_session() which is patched to our test factory
+        async with self._session_factory() as session:
+            result = await session.execute(select(ApiKey))
+            keys = result.scalars().all()
+            assert len(keys) == 1
+            assert keys[0].name == "default-admin"
+            assert keys[0].permissions == "*"
+            assert keys[0].is_active is True
+
+    async def test_ensure_default_key_preserves_existing(self):
+        """When keys already exist, ensure_default_key must NOT create a new one."""
+        from gatekeeper.main import ensure_default_key
+
+        # Pre-create a key using the same patched session factory
+        raw, hash_val, prefix = ApiKey.generate_key()
+        key = ApiKey(
+            name="my-existing-key",
+            key_hash=hash_val,
+            key_prefix=prefix,
+            permissions="drive,gmail",
+            is_active=True,
+        )
+        async with self._session_factory() as session:
+            session.add(key)
+            await session.commit()
+
+        # Calling ensure_default_key should be a no-op
+        await ensure_default_key()
+
+        async with self._session_factory() as session:
+            result = await session.execute(select(ApiKey))
+            keys = result.scalars().all()
+            assert len(keys) == 1  # Still only 1 key — no new one created
+            assert keys[0].key_prefix == prefix
+            assert keys[0].name == "my-existing-key"
+            assert keys[0].permissions == "drive,gmail"
+
+            # Original key still validates
+            assert bcrypt.checkpw(raw.encode(), keys[0].key_hash.encode())
+
+    async def test_ensure_default_key_idempotent_multiple_calls(self):
+        """Calling ensure_default_key multiple times (simulating restarts)
+        must not create duplicate keys."""
+        from gatekeeper.main import ensure_default_key
+
+        await ensure_default_key()
+
+        async with self._session_factory() as session:
+            result = await session.execute(select(ApiKey))
+            count_after_first = len(result.scalars().all())
+
+        # Simulate multiple restarts
+        for _ in range(5):
+            await ensure_default_key()
+
+        async with self._session_factory() as session:
+            result = await session.execute(select(ApiKey))
+            keys = result.scalars().all()
+            assert len(keys) == count_after_first  # No new keys created
+
+    async def test_restart_preserves_manually_created_keys(self):
+        """Keys created via admin API must survive ensure_default_key."""
+        from gatekeeper.main import ensure_default_key
+
+        raw1, hash1, prefix1 = ApiKey.generate_key()
+        key1 = ApiKey(
+            name="admin-key",
+            key_hash=hash1,
+            key_prefix=prefix1,
+            permissions="*",
+            is_active=True,
+        )
+        async with self._session_factory() as session:
+            session.add(key1)
+            await session.commit()
+
+        # Simulate restart
+        await ensure_default_key()
+
+        async with self._session_factory() as session:
+            result = await session.execute(select(ApiKey))
+            keys = result.scalars().all()
+            assert len(keys) == 1
+            assert keys[0].name == "admin-key"
+            assert keys[0].key_prefix == prefix1
+            assert bcrypt.checkpw(raw1.encode(), keys[0].key_hash.encode())

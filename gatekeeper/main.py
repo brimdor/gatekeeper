@@ -33,7 +33,8 @@ async def lifespan(app: FastAPI):
     # Seed default route policies for enabled modules
     await seed_default_policies()
 
-    # Generate default API key if none exist
+    # Generate default API key if none exist (safe on restart —
+    # existing keys are never touched)
     await ensure_default_key()
 
     gv = __import__("gatekeeper").__version__
@@ -92,25 +93,38 @@ async def seed_default_policies():
 
 
 async def ensure_default_key():
-    """Generate a default admin API key if none exist."""
+    """Generate a default admin API key if none exist.
+
+    This function is called on every startup (lifespan) and on ``gatekeeper init``.
+    It will NEVER revoke, invalidate, or replace existing keys — it only creates
+    a default key when the API key table is completely empty (e.g. first run).
+    A simple service restart preserves all existing keys.
+    """
     async with async_session() as session:
         result = await session.execute(select(ApiKey))
         existing = result.scalars().all()
 
-        if not existing:
-            raw, hash_val, prefix = ApiKey.generate_key()
-            key = ApiKey(
-                name="default-admin",
-                key_hash=hash_val,
-                key_prefix=prefix,
-                permissions="*",
+        if existing:
+            # Keys already exist — do nothing.  Restarting MUST NOT touch them.
+            logger.info(
+                "API key table has %d existing key(s) — skipping default key creation",
+                len(existing),
             )
-            session.add(key)
-            await session.commit()
-            print(f"\n{'=' * 60}")
-            print("🔑 Default API Key generated (save this — it won't be shown again):")
-            print(f"   {raw}")
-            print(f"{'=' * 60}\n")
+            return
+
+        raw, hash_val, prefix = ApiKey.generate_key()
+        key = ApiKey(
+            name="default-admin",
+            key_hash=hash_val,
+            key_prefix=prefix,
+            permissions="*",
+        )
+        session.add(key)
+        await session.commit()
+        print(f"\n{'=' * 60}")
+        print("🔑 Default API Key generated (save this — it won't be shown again):")
+        print(f"   {raw}")
+        print(f"{'=' * 60}\n")
 
 
 def create_app() -> FastAPI:
