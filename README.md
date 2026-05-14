@@ -41,6 +41,8 @@ For the full step-by-step walkthrough, see **[Setup Guide](docs/SETUP.md)**.
 
 ### Option 1: One-line install (recommended)
 
+The install script walks you through setup interactively — Google OAuth, module selection, server config:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/brimdor/gatekeeper/main/install.sh | bash
 ```

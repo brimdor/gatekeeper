@@ -14,14 +14,25 @@ Complete walkthrough for installing, configuring, and running Gatekeeper on a fr
 
 ## Step 1 — Install Gatekeeper
 
-### Option A: One-liner (bare metal, recommended)
+### Option A: One-line install with interactive setup (recommended)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/brimdor/gatekeeper/main/install.sh | bash
 ```
 
-Installs `uv` if needed, then installs the `gatekeeper` CLI.
-Works on Ubuntu/Debian, Fedora/RHEL, Arch Linux, and macOS.
+This runs an interactive wizard that:
+- Installs Python dependencies
+- Clones the repo
+- Asks for your Google OAuth Client ID and Secret
+- Lets you choose which APIs to enable (Drive, Gmail, Calendar)
+- Configures host/port
+- Writes `.env` with your settings
+- Runs `gatekeeper init` and `gatekeeper auth`
+
+For non-interactive installs (CI, scripts):
+```bash
+bash install.sh --non-interactive
+```
 
 ### Option B: Manual (bare metal)
 
