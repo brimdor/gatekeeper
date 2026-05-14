@@ -44,6 +44,13 @@ done
 
 # ===================== Dependency Checks =====================
 
+check_bc() {
+    if ! command -v bc &>/dev/null; then
+        return 1
+    fi
+    return 0
+}
+
 check_python() {
     if command -v python3 &>/dev/null; then
         PYTHON=python3
@@ -55,20 +62,17 @@ check_python() {
         exit 1
     fi
 
-    PY_VERSION=$($PYTHON -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-    if (( $(echo "$PY_VERSION < 3.11" | bc -l) )); then
-        error "Python 3.11+ required, found $PY_VERSION"
-        echo "  Upgrade: https://www.python.org/downloads/"
-        exit 1
-    fi
-    success "Python $PY_VERSION"
-}
-
-check_bc() {
-    if ! command -v bc &>/dev/null; then
-        # Try pip install approach or just skip version check
+    if check_bc; then
+        PY_VERSION=$($PYTHON -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+        if (( $(echo "$PY_VERSION < 3.11" | bc -l) )); then
+            error "Python 3.11+ required, found $PY_VERSION"
+            echo "  Upgrade: https://www.python.org/downloads/"
+            exit 1
+        fi
+        success "Python $PY_VERSION"
+    else
         warn "bc not found — skipping Python version validation"
-        return
+        success "Python found ($PYTHON)"
     fi
 }
 
@@ -364,7 +368,6 @@ main() {
     echo -e "${NC}"
 
     # 1. Check and install dependencies
-    check_bc
     check_python
     install_uv
     check_git
