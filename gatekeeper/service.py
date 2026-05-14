@@ -1,6 +1,6 @@
 """Manage Gatekeeper as a systemd user service.
 
-Provides install, enable, disable, status, logs, and uninstall
+Provides install, enable, disable, restart, status, logs, and uninstall
 operations for the ``gatekeeper.service`` user unit. All operations
 use ``systemctl --user`` so no root privileges are required.
 """
@@ -203,6 +203,17 @@ def disable_service() -> bool:
     _systemctl("stop", SERVICE_NAME, check=False)
     _systemctl("disable", SERVICE_NAME)
     print("✅ Gatekeeper service disabled and stopped.")
+    return True
+
+
+def restart_service() -> bool:
+    """Restart the service (stop + start, preserving enable state)."""
+    if not _unit_path().exists():
+        print("❌ Service unit not found. Run 'gatekeeper service install' first.")
+        return False
+
+    _systemctl("restart", SERVICE_NAME)
+    print("✅ Gatekeeper service restarted.")
     return True
 
 

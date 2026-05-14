@@ -233,6 +233,7 @@ def cli():
     )
     service_subparsers.add_parser("enable", help="Enable and start the service")
     service_subparsers.add_parser("disable", help="Stop and disable the service")
+    service_subparsers.add_parser("restart", help="Restart the service")
     service_subparsers.add_parser("status", help="Show service status")
     logs_parser = service_subparsers.add_parser("logs", help="Show service logs")
     logs_parser.add_argument("-f", "--follow", action="store_true", help="Follow log output")
@@ -294,6 +295,7 @@ def cli():
             disable_service,
             enable_service,
             install_service,
+            restart_service,
             service_logs,
             service_status,
             uninstall_service,
@@ -304,6 +306,7 @@ def cli():
             "uninstall": lambda: uninstall_service(),
             "enable": lambda: enable_service(),
             "disable": lambda: disable_service(),
+            "restart": lambda: restart_service(),
             "status": lambda: service_status(),
             "logs": lambda: service_logs(follow=args.follow),
         }

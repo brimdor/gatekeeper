@@ -14,6 +14,7 @@ from gatekeeper.service import (
     disable_service,
     enable_service,
     install_service,
+    restart_service,
     uninstall_service,
 )
 
@@ -191,6 +192,28 @@ class TestEnableDisable:
             assert result is True
             # stop and disable
             assert mock_ctl.call_count == 2
+
+    def test_restart_service(self, tmp_path):
+        """Should restart the service via systemctl."""
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        unit_path = tmp_path / "gatekeeper.service"
+        unit_path.write_text("[Unit]\nDescription=test\n")
+
+        with (
+            patch("gatekeeper.service._unit_path", return_value=unit_path),
+            patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
+        ):
+            result = restart_service()
+            assert result is True
+            mock_ctl.assert_called_once_with("restart", "gatekeeper")
+
+    def test_restart_service_not_installed(self, tmp_path):
+        """Should fail if service unit is not installed."""
+        unit_path = tmp_path / "gatekeeper.service"
+
+        with patch("gatekeeper.service._unit_path", return_value=unit_path):
+            result = restart_service()
+            assert result is False
 
 
 # ---------------------------------------------------------------------------
