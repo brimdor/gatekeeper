@@ -95,6 +95,9 @@ async def app(db_engine, test_settings):
     original_auth_settings = getattr(gatekeeper.auth, "settings", None)
     gatekeeper.auth.settings = test_settings
 
+    original_routes_settings = getattr(gatekeeper.admin.routes, "settings", None)
+    gatekeeper.admin.routes.settings = test_settings
+
     # Build a test DB session factory
     test_session_factory = async_sessionmaker(
         db_engine, class_=AsyncSession, expire_on_commit=False
@@ -185,6 +188,8 @@ async def app(db_engine, test_settings):
         gatekeeper.admin.routes.async_session = original_admin_async_session
         if original_auth_settings is not None:
             gatekeeper.auth.settings = original_auth_settings
+        if original_routes_settings is not None:
+            gatekeeper.admin.routes.settings = original_routes_settings
         if original_gc_settings is not None:
             gatekeeper.google_client.settings = original_gc_settings
         if original_enc_settings is not None:
