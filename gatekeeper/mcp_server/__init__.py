@@ -12,6 +12,7 @@ from typing import Any
 
 from fastapi import FastAPI
 
+from gatekeeper.config import settings
 from gatekeeper.db import async_session
 from gatekeeper.models import ApiKey
 from gatekeeper.policy import PolicyEngine
@@ -20,6 +21,35 @@ logger = logging.getLogger(__name__)
 
 # Lazy-initialised singleton
 _mcp_instance: Any | None = None
+
+
+def _build_transport_security() -> Any:
+    """Build transport security settings that allow the configured hosts.
+
+    The MCP SDK enables DNS rebinding protection by default, which rejects
+    all requests unless ``allowed_hosts`` is configured.  We allow:
+      - The host/port Gatekeeper binds to (from settings)
+      - localhost variants (for local development)
+      - Common Tailscale IPs (100.x.x.x)
+      - Any host on the bind port (for proxies like Tailscale Serve)
+    """
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    hosts = set()
+
+    # The configured bind host/port
+    hosts.add(f"{settings.host}:{settings.port}")
+    # Common local addresses
+    hosts.add(f"localhost:{settings.port}")
+    hosts.add(f"127.0.0.1:{settings.port}")
+    # Allow any hostname on the bind port (covers Tailscale, reverse proxies)
+    hosts.add(f"*:{settings.port}")
+
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=list(hosts),
+        allowed_origins=list(hosts),
+    )
 
 
 async def _resolve_api_key(raw_key: str) -> ApiKey | None:
@@ -71,6 +101,8 @@ def create_mcp_server() -> Any:
             "authentication.  Available tools depend on which routes are enabled by "
             "the administrator."
         ),
+        host=settings.host,
+        transport_security=_build_transport_security(),
     )
 
     # ------------------------------------------------------------------ #
