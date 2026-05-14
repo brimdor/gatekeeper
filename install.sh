@@ -333,7 +333,11 @@ ENVFILE
 run_init() {
     printf "\n"
     info "Initializing database and seeding default policies..."
-    gatekeeper init
+    INIT_OUTPUT=$(gatekeeper init 2>&1) || true
+    printf "%s\n" "$INIT_OUTPUT"
+
+    # Extract the default API key from init output (it's only shown once)
+    DEFAULT_API_KEY=$(echo "$INIT_OUTPUT" | grep -oP 'gkp_[A-Za-z0-9_-]+' | head -1) || true
 }
 
 run_auth() {
@@ -476,6 +480,12 @@ print_success() {
     printf "\n"
     printf "  MCP endpoint (for AI agents):\n"
     printf "    ${CYAN}http://localhost:${port}/mcp/sse${NC}\n"
+    if [[ -n "$DEFAULT_API_KEY" ]]; then
+        printf "\n"
+        printf "  ${YELLOW}Default API Key:${NC}\n"
+        printf "    ${CYAN}${DEFAULT_API_KEY}${NC}\n"
+        printf "    ${YELLOW}⚠ Save this — it won't be shown again!${NC}\n"
+    fi
     printf "\n"
     printf "  Useful commands:\n"
     printf "    ${CYAN}gatekeeper status${NC}          — Show configuration\n"
@@ -491,7 +501,7 @@ print_success() {
     printf "  Secrets:     ${CYAN}gatekeeper_secrets.json${NC}  (auto-generated)\n"
     printf "  Database:    ${CYAN}gatekeeper.db${NC}  (auto-generated)\n"
     printf "\n"
-    printf "  ${YELLOW}⚠ Save the admin password — it's only shown once!${NC}\n"
+    printf "  ${YELLOW}⚠ Save the admin password and API key — they're only shown once!${NC}\n"
     printf "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 }
 
