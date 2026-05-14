@@ -192,6 +192,9 @@ class GoogleCredentialManager:
             ]
 
         # Step 1: Get device code
+        # Diagnostic: log the client_id being sent (mask most of it for safety)
+        masked_id = settings.google_client_id[:8] + "..." if settings.google_client_id and len(settings.google_client_id) > 8 else "(empty)"
+        logger.info("Requesting device code with client_id=%s, scopes=%s", masked_id, scopes)
         try:
             with httpx.Client(timeout=30) as client:
                 # Device code endpoint only accepts client_id+scope
@@ -217,11 +220,13 @@ class GoogleCredentialManager:
                     # Provide actionable hints
                     if response.status_code == 401:
                         print("\n   Common causes of 401 Unauthorized:")
-                        print("   1. OAuth client type must be 'Desktop app'")
-                        print("      (not 'Web application') — Web clients don't")
-                        print("      support the device code flow")
-                        print("   2. OAuth consent screen not configured — go to:")
-                        print("      https://console.cloud.google.com/apis/credentials/consent")
+                        print("   1. OAuth client is NOT a 'Desktop app'")
+                        print("      → Google Console → Credentials → check type")
+                        print("      → Web application clients don't support device flow")
+                        print("      → You must DELETE and recreate as 'Desktop app'")
+                        print("         (type cannot be changed after creation)")
+                        print("   2. OAuth consent screen not configured:")
+                        print("      → https://console.cloud.google.com/apis/credentials/consent")
                         print("      → Set Publishing status to 'Testing'")
                         print("      → Add your Google email as a Test User")
                         print("   3. Client ID is incorrect or truncated")

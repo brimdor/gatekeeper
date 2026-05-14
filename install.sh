@@ -162,12 +162,34 @@ install_gatekeeper() {
     source .venv/bin/activate
     uv pip install -e .
 
-    # Ensure gatekeeper is findable
+    # Create ~/.local/bin if needed and symlink gatekeeper
+    mkdir -p "$HOME/.local/bin"
+    local gk_bin
+    gk_bin="$(pwd)/.venv/bin/gatekeeper"
+    if [[ -x "$gk_bin" ]]; then
+        ln -sf "$gk_bin" "$HOME/.local/bin/gatekeeper"
+        info "Linked gatekeeper → ~/.local/bin/gatekeeper"
+    else
+        error "gatekeeper binary not found in venv — installation may have failed"
+    fi
+
+    # Ensure ~/.local/bin is in PATH for this session
+    export PATH="$HOME/.local/bin:$PATH"
+
+    # Persist PATH for future sessions
+    local shell_rc="$HOME/.bashrc"
+    if [[ -f "$HOME/.zshrc" ]]; then
+        shell_rc="$HOME/.zshrc"
+    fi
+    if ! grep -q '.local/bin' "$shell_rc" 2>/dev/null; then
+        echo '' >> "$shell_rc"
+        echo '# Added by Gatekeeper installer' >> "$shell_rc"
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$shell_rc"
+        info "Added ~/.local/bin to PATH in $shell_rc"
+    fi
+
     if ! command -v gatekeeper &>/dev/null; then
-        export PATH="$(pwd)/.venv/bin:$PATH"
-        if ! command -v gatekeeper &>/dev/null; then
-            error "Gatekeeper installation failed"
-        fi
+        error "Gatekeeper installation failed — gatekeeper not found in PATH"
     fi
     success "Gatekeeper installed"
 }
