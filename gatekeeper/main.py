@@ -256,21 +256,15 @@ def cli():
     hosts_parser = subparsers.add_parser(
         "hosts", help="Manage MCP allowed hosts for the SSE endpoint"
     )
-    hosts_subparsers = hosts_parser.add_subparsers(
-        dest="hosts_command", help="Hosts commands"
-    )
+    hosts_subparsers = hosts_parser.add_subparsers(dest="hosts_command", help="Hosts commands")
     hosts_subparsers.add_parser("list", help="List allowed MCP hosts")
     hosts_add = hosts_subparsers.add_parser("add", help="Add a host to the allowed list")
     hosts_add.add_argument(
         "host",
         help="Hostname to add (e.g., 100.127.113.87 or myhost.tail-abc.ts.net)",
     )
-    hosts_remove = hosts_subparsers.add_parser(
-        "remove", help="Remove a host from the allowed list"
-    )
-    hosts_remove.add_argument(
-        "host", help="Hostname to remove (e.g., 100.127.113.87)"
-    )
+    hosts_remove = hosts_subparsers.add_parser("remove", help="Remove a host from the allowed list")
+    hosts_remove.add_argument("host", help="Hostname to remove (e.g., 100.127.113.87)")
 
     args = parser.parse_args()
 

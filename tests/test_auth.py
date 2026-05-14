@@ -289,7 +289,9 @@ class TestEnsureDefaultKeyRestartSafety:
         # Use a single shared connection for all sessions so data is visible
         # across session boundaries in in-memory SQLite
         test_session_factory = async_sessionmaker(
-            engine, class_=AsyncSession, expire_on_commit=False,
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
         )
 
         # Patch both the db module AND main module (which imports async_session

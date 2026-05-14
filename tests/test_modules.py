@@ -4,7 +4,6 @@ Routes may be added or removed over time, so tests verify properties
 that must always hold rather than asserting exact route IDs or counts.
 """
 
-
 from gatekeeper.modules import load_module
 
 
