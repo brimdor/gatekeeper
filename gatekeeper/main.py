@@ -8,6 +8,7 @@ import json
 import logging
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -236,6 +237,26 @@ def cli():
     logs_parser = service_subparsers.add_parser("logs", help="Show service logs")
     logs_parser.add_argument("-f", "--follow", action="store_true", help="Follow log output")
 
+    # hosts
+    hosts_parser = subparsers.add_parser(
+        "hosts", help="Manage MCP allowed hosts for the SSE endpoint"
+    )
+    hosts_subparsers = hosts_parser.add_subparsers(
+        dest="hosts_command", help="Hosts commands"
+    )
+    hosts_subparsers.add_parser("list", help="List allowed MCP hosts")
+    hosts_add = hosts_subparsers.add_parser("add", help="Add a host to the allowed list")
+    hosts_add.add_argument(
+        "host",
+        help="Hostname to add (e.g., 100.127.113.87 or myhost.tail-abc.ts.net)",
+    )
+    hosts_remove = hosts_subparsers.add_parser(
+        "remove", help="Remove a host from the allowed list"
+    )
+    hosts_remove.add_argument(
+        "host", help="Hostname to remove (e.g., 100.127.113.87)"
+    )
+
     args = parser.parse_args()
 
     if args.command == "serve":
@@ -293,6 +314,9 @@ def cli():
                 sys.exit(1)
         else:
             service_parser.print_help()
+
+    elif args.command == "hosts":
+        _cli_hosts(args)
 
     else:
         parser.print_help()
@@ -420,3 +444,97 @@ def _cli_status():
     else:
         print("  Service:      — systemd not available")
     print(f"{'=' * 50}\n")
+
+
+def _cli_hosts(args):
+    """Manage MCP allowed hosts for the SSE endpoint."""
+
+    env_file = Path(".env")
+
+    if args.hosts_command == "list":
+        # Show configured hosts + always-allowed defaults
+        port = settings.port
+        always = [f"localhost:{port}", f"127.0.0.1:{port}"]
+        user_hosts = settings.mcp_allowed_hosts
+
+        print(f"\n{'=' * 50}")
+        print("  MCP Allowed Hosts")
+        print(f"{'=' * 50}")
+        print("\n  Always allowed (built-in defaults):")
+        for h in always:
+            print(f"    ✅ {h}")
+        if user_hosts:
+            print("\n  User-configured (from .env / GATEKEEPER_MCP_ALLOWED_HOSTS):")
+            for h in user_hosts:
+                display = f"{h}:{port}" if ":" not in h else h
+                print(f"    ✅ {display}")
+        else:
+            print("\n  No additional hosts configured.")
+            print("  Run: gatekeeper hosts add <hostname>")
+        print(f"\n  Config file: {env_file}")
+        print(f"{'=' * 50}\n")
+
+    elif args.hosts_command == "add":
+        host = args.host
+        current = list(settings.mcp_allowed_hosts)
+        if host in current:
+            print(f"⚠️  Host '{host}' is already in the allowed list.")
+            return
+        current.append(host)
+        _update_env_var(env_file, "GATEKEEPER_MCP_ALLOWED_HOSTS", current)
+        print(f"✅ Added '{host}' to MCP allowed hosts.")
+        print("   Restart Gatekeeper for the change to take effect: gatekeeper service restart")
+
+    elif args.hosts_command == "remove":
+        host = args.host
+        current = list(settings.mcp_allowed_hosts)
+        if host not in current:
+            print(f"⚠️  Host '{host}' is not in the allowed list.")
+            return
+        current.remove(host)
+        if current:
+            _update_env_var(env_file, "GATEKEEPER_MCP_ALLOWED_HOSTS", current)
+        else:
+            _remove_env_var(env_file, "GATEKEEPER_MCP_ALLOWED_HOSTS")
+        print(f"✅ Removed '{host}' from MCP allowed hosts.")
+        print("   Restart Gatekeeper for the change to take effect: gatekeeper service restart")
+
+    else:
+        print("Usage: gatekeeper hosts {list|add|remove}")
+        print("  list    — Show allowed MCP hosts")
+        print("  add     — Add a host to the allowed list")
+        print("  remove  — Remove a host from the allowed list")
+
+
+def _update_env_var(env_file: Path, key: str, value: list[str]) -> None:
+    """Add or update a JSON-array environment variable in .env."""
+    json_value = json.dumps(value)
+    lines = []
+    found = False
+
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            if line.startswith(f"{key}=") or line.startswith(f"# {key}="):
+                lines.append(f"{key}={json_value}")
+                found = True
+            else:
+                lines.append(line)
+
+    if not found:
+        lines.append(f"{key}={json_value}")
+
+    env_file.write_text("\n".join(lines) + "\n")
+
+
+def _remove_env_var(env_file: Path, key: str) -> None:
+    """Remove an environment variable from .env."""
+    if not env_file.exists():
+        return
+
+    lines = []
+    for line in env_file.read_text().splitlines():
+        if line.startswith(f"{key}=") or line.startswith(f"# {key}="):
+            continue
+        lines.append(line)
+
+    env_file.write_text("\n".join(lines) + "\n")

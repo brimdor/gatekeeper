@@ -63,6 +63,11 @@ class Settings(BaseSettings):
 
     # MCP Server
     mcp_enabled: bool = True
+    # MCP allowed hosts — Host header values the MCP SSE endpoint will accept.
+    # Default is localhost/127.0.0.1 on the configured port.
+    # Add your Tailscale hostname, LAN IP, etc. via GATEKEEPER_MCP_ALLOWED_HOSTS.
+    # Use "*:PORT" to allow any hostname (less secure, convenient for proxies).
+    mcp_allowed_hosts: list[str] = []
 
     # Security
     api_key_prefix: str = "gkp_"

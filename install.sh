@@ -324,6 +324,7 @@ GATEKEEPER_CALENDAR_ENABLED=${calendar_enabled}
 
 # MCP Server
 GATEKEEPER_MCP_ENABLED=true
+GATEKEEPER_MCP_ALLOWED_HOSTS=[]
 ENVFILE
 
     success ".env written"
@@ -357,9 +358,73 @@ run_auth() {
     fi
 }
 
+configure_mcp_hosts() {
+    printf "\n"
+    printf "${BOLD}  Step 5: MCP Allowed Hosts${NC}\n"
+    printf "\n"
+    printf "  Gatekeeper's MCP server validates the Host header on incoming\n"
+    printf "  connections for security (DNS rebinding protection).\n"
+    printf "  By default, only localhost connections are allowed.\n"
+    printf "\n"
+    printf "  If you access Gatekeeper from another machine (Tailscale,\n"
+    printf "  LAN IP, reverse proxy), add that hostname here.\n"
+    printf "\n"
+    printf "  Examples:\n"
+    printf "    ${CYAN}100.127.113.87${NC}          (Tailscale IP)\n"
+    printf "    ${CYAN}myhost.tail-abc.ts.net${NC}  (Tailscale domain)\n"
+    printf "    ${CYAN}10.0.30.10${NC}              (LAN IP)\n"
+    printf "    ${CYAN}*${NC}                        (allow any host — less secure)\n"
+    printf "\n"
+
+    local env_file=".env"
+    local hosts=""
+
+    # Collect hosts interactively
+    while true; do
+        tty_read -p "  Add a host? (leave empty to finish): " host_input
+        if [[ -z "$host_input" ]]; then
+            break
+        fi
+        if [[ -n "$hosts" ]]; then
+            hosts="${hosts}, ${host_input}"
+        else
+            hosts="${host_input}"
+        fi
+        printf "  ✅ Added ${CYAN}%s${NC}\n" "$host_input"
+    done
+
+    if [[ -n "$hosts" ]]; then
+        # Build JSON array
+        local json_array="["
+        local first=true
+        for h in ${hosts//,/ }; do
+            h="${h#"${h%%[![:space:]]*}"}"  # trim leading whitespace
+            h="${h%"${h##*[![:space:]]}"}"  # trim trailing whitespace
+            if [[ "$first" == "true" ]]; then
+                json_array="${json_array}\"${h}\""
+                first=false
+            else
+                json_array="${json_array}, \"${h}\""
+            fi
+        done
+        json_array="${json_array}]"
+
+        # Update .env file
+        if grep -q "^GATEKEEPER_MCP_ALLOWED_HOSTS=" "$env_file" 2>/dev/null; then
+            sed -i "s|^GATEKEEPER_MCP_ALLOWED_HOSTS=.*|GATEKEEPER_MCP_ALLOWED_HOSTS=${json_array}|" "$env_file"
+        else
+            echo "GATEKEEPER_MCP_ALLOWED_HOSTS=${json_array}" >> "$env_file"
+        fi
+        success "MCP allowed hosts configured: $hosts"
+    else
+        info "No additional MCP hosts configured (localhost only)."
+        info "Run ${CYAN}gatekeeper hosts add <host>${NC} later if needed."
+    fi
+}
+
 run_service() {
     printf "\n"
-    printf "${BOLD}  Step 5: Systemd Service${NC}\n"
+    printf "${BOLD}  Step 6: Systemd Service${NC}\n"
     printf "\n"
     printf "  Gatekeeper can run as a systemd user service so it starts\n"
     printf "  automatically on boot and restarts on failure.\n"
@@ -418,6 +483,8 @@ print_success() {
     printf "    ${CYAN}gatekeeper auth${NC}            — (Re-)authorize with Google\n"
     printf "    ${CYAN}gatekeeper service status${NC}  — Check service status\n"
     printf "    ${CYAN}gatekeeper service logs -f${NC}  — Tail service logs\n"
+    printf "    ${CYAN}gatekeeper hosts list${NC}        — Show MCP allowed hosts\n"
+    printf "    ${CYAN}gatekeeper hosts add <host>${NC}  — Add MCP allowed host\n"
     printf "\n"
     printf "  Config file: ${CYAN}.env${NC}\n"
     printf "  Secrets:     ${CYAN}gatekeeper_secrets.json${NC}  (auto-generated)\n"
@@ -459,6 +526,7 @@ main() {
         setup_env
         run_init
         run_auth
+        configure_mcp_hosts
         run_service
         print_success
     fi

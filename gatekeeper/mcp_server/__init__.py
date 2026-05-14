@@ -27,23 +27,29 @@ def _build_transport_security() -> Any:
     """Build transport security settings that allow the configured hosts.
 
     The MCP SDK enables DNS rebinding protection by default, which rejects
-    all requests unless ``allowed_hosts`` is configured.  We allow:
-      - The host/port Gatekeeper binds to (from settings)
-      - localhost variants (for local development)
-      - Common Tailscale IPs (100.x.x.x)
-      - Any host on the bind port (for proxies like Tailscale Serve)
+    all requests unless ``allowed_hosts`` is explicitly configured.
+
+    Defaults to localhost/127.0.0.1 on the configured port (secure-by-default).
+    Users add additional hosts (Tailscale, LAN IPs, wildcards) via:
+      - GATEKEEPER_MCP_ALLOWED_HOSTS env var (JSON array)
+      - gatekeeper hosts add <host>
     """
     from mcp.server.transport_security import TransportSecuritySettings
 
+    port = settings.port
     hosts = set()
 
-    # The configured bind host/port
-    hosts.add(f"{settings.host}:{settings.port}")
-    # Common local addresses
-    hosts.add(f"localhost:{settings.port}")
-    hosts.add(f"127.0.0.1:{settings.port}")
-    # Allow any hostname on the bind port (covers Tailscale, reverse proxies)
-    hosts.add(f"*:{settings.port}")
+    # Always allow localhost variants (secure defaults)
+    hosts.add(f"localhost:{port}")
+    hosts.add(f"127.0.0.1:{port}")
+
+    # Add user-configured hosts from GATEKEEPER_MCP_ALLOWED_HOSTS
+    for host in settings.mcp_allowed_hosts:
+        # Support port-less hosts by appending the server port
+        if ":" not in host:
+            hosts.add(f"{host}:{port}")
+        else:
+            hosts.add(host)
 
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
