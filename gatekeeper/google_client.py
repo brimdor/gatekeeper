@@ -380,9 +380,7 @@ class GoogleCredentialManager:
             # SSH / headless — manual code exchange that works anywhere
             return self._auth_with_manual_code(client_config, scopes)
 
-    def _auth_with_local_server(
-        self, client_config: dict, scopes: list[str]
-    ) -> Credentials | None:
+    def _auth_with_local_server(self, client_config: dict, scopes: list[str]) -> Credentials | None:
         """Auth flow with local HTTP server (for machines with a display)."""
         from google_auth_oauthlib.flow import InstalledAppFlow
 
@@ -423,9 +421,7 @@ class GoogleCredentialManager:
             print()
             return None
 
-    def _auth_with_manual_code(
-        self, client_config: dict, scopes: list[str]
-    ) -> Credentials | None:
+    def _auth_with_manual_code(self, client_config: dict, scopes: list[str]) -> Credentials | None:
         """Manual auth flow for SSH / headless environments.
 
         Generates the auth URL, the user opens it on any device,

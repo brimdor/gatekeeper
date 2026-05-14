@@ -377,6 +377,7 @@ class TestDesktopAuthFlow:
             mock_iapp.from_client_config.return_value = mock_flow
 
             import google_auth_oauthlib.flow
+
             orig_class = google_auth_oauthlib.flow.InstalledAppFlow
             google_auth_oauthlib.flow.InstalledAppFlow = mock_iapp
 
@@ -429,6 +430,7 @@ class TestDesktopAuthFlow:
             mock_iapp.from_client_config.return_value = mock_flow
 
             import google_auth_oauthlib.flow
+
             orig_class = google_auth_oauthlib.flow.InstalledAppFlow
             google_auth_oauthlib.flow.InstalledAppFlow = mock_iapp
 
@@ -482,6 +484,7 @@ class TestDesktopAuthFlow:
             mock_iapp.from_client_config.return_value = mock_flow
 
             import google_auth_oauthlib.flow
+
             orig_class = google_auth_oauthlib.flow.InstalledAppFlow
             google_auth_oauthlib.flow.InstalledAppFlow = mock_iapp
 
