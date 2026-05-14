@@ -191,7 +191,11 @@ class GoogleCredentialManager:
 
         # Step 1: Get device code
         # Diagnostic: log the client_id being sent (mask most of it for safety)
-        masked_id = settings.google_client_id[:8] + "..." if settings.google_client_id and len(settings.google_client_id) > 8 else "(empty)"
+        masked_id = (
+            settings.google_client_id[:8] + "..."
+            if settings.google_client_id and len(settings.google_client_id) > 8
+            else "(empty)"
+        )
         logger.info("Requesting device code with client_id=%s, scopes=%s", masked_id, scopes)
         try:
             with httpx.Client(timeout=30) as client:
@@ -429,8 +433,9 @@ class GoogleCredentialManager:
         We extract the auth code from the redirect URL and exchange it
         for tokens. This works perfectly over SSH.
         """
-        from google_auth_oauthlib.flow import InstalledAppFlow
         import urllib.parse
+
+        from google_auth_oauthlib.flow import InstalledAppFlow
 
         print(f"\n{'=' * 60}")
         print("🔐 Google Account Authorization (Manual Code Exchange)")

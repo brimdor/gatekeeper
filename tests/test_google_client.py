@@ -470,7 +470,10 @@ class TestDesktopAuthFlow:
             )
 
             mock_flow = MagicMock()
-            mock_flow.authorization_url.return_value = ("https://accounts.google.com/o/oauth2/auth?fake=1", None)
+            mock_flow.authorization_url.return_value = (
+                "https://accounts.google.com/o/oauth2/auth?fake=1",
+                None,
+            )
             mock_flow.credentials = mock_creds
             mock_flow.fetch_token.return_value = None
             mock_flow.redirect_uri = None
