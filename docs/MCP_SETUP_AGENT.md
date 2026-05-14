@@ -8,11 +8,11 @@ You are an AI agent that has connected to a repository containing **Gatekeeper**
 
 Gatekeeper sits between you and Google's APIs. You call MCP tools, Gatekeeper enforces policies:
 
-- **Read routes** (list, get, export) are **enabled by default**
-- **Write routes** (create, send, update, delete) are **disabled by default** — only a human admin can enable them
 - Every call requires an **API key** and is audit-logged
-- You **cannot bypass** disabled routes — they return `403`
+- Some routes may be disabled — calling them returns `403`
+- You **cannot bypass** disabled routes
 - You **cannot modify** policies, keys, or admin settings — those require HTTP Basic Auth
+- **Always list available tools first** — do not assume any route is enabled or disabled. Routes are toggled by the human admin, and you must discover what's available by calling `list_tools`.
 
 ---
 
@@ -83,88 +83,58 @@ Gatekeeper uses SSE transport. Most MCP clients default to Streamable HTTP. With
 After configuring, check:
 
 1. **Health endpoint**: `curl http://HOST:8080/health` should return `{"status":"ok","version":"0.1.0"}`
-2. **Tool discovery**: Your MCP client should list Gatekeeper tools (e.g., `drive__files_list`, `gmail__messages_list`, `calendar__calendars_list`)
-3. **Test a read call**: Try listing calendars or files — these are enabled by default
+2. **Tool discovery**: Call `list_tools` to see what's available. This is your source of truth — do not assume any tool exists or is usable.
+3. **Test a call**: Try listing calendars or files to confirm the connection works.
 
 ---
 
 ## How to call tools
 
-Every Gatekeeper tool requires an `api_key` parameter. This is the `gkp_...` key the admin gave you.
+Every Gatekeeper tool requires an `api_key` parameter. Pass your API key with each call.
 
 ### Example: List Drive files
 
 ```
 Tool: drive__files_list
-Arguments: {
-  "api_key": "gkp_aBcDeFgHiJkLmNoPqRsTuVwXyZ01234567890",
-  "page_size": 10
-}
-```
-
-Returns:
-```json
-{
-  "files": [
-    {"id": "1abc...", "name": "Report.pdf", "mimeType": "application/pdf"},
-    {"id": "2def...", "name": "Notes.docx", "mimeType": "application/vnd.google-apps.document"}
-  ]
-}
+Arguments: { "api_key": "gkp_...", "page_size": 10 }
 ```
 
 ### Example: Get a Drive file by ID
 
 ```
 Tool: drive__files_get
-Arguments: {
-  "api_key": "gkp_aBcDeFgHiJkLmNoPqRsTuVwXyZ01234567890",
-  "file_id": "1abc..."
-}
+Arguments: { "api_key": "gkp_...", "file_id": "1abc..." }
 ```
 
 ### Example: List Gmail messages
 
 ```
 Tool: gmail__messages_list
-Arguments: {
-  "api_key": "gkp_aBcDeFgHiJkLmNoPqRsTuVwXyZ01234567890",
-  "page_size": 5,
-  "query": "is:unread"
-}
+Arguments: { "api_key": "gkp_...", "page_size": 5, "query": "is:unread" }
 ```
 
 ### Example: List calendar events
 
 ```
 Tool: calendar__events_list
-Arguments: {
-  "api_key": "gkp_aBcDeFgHiJkLmNoPqRsTuVwXyZ01234567890",
-  "calendar_id": "primary",
-  "time_min": "2025-01-01T00:00:00Z",
-  "time_max": "2025-01-31T23:59:59Z"
-}
+Arguments: { "api_key": "gkp_...", "calendar_id": "primary", "time_min": "2025-01-01T00:00:00Z", "time_max": "2025-01-31T23:59:59Z" }
 ```
 
-### Example: Create a file (if enabled)
+### Example: Create a file
 
 ```
 Tool: drive__files_create
-Arguments: {
-  "api_key": "gkp_aBcDeFgHiJkLmNoPqRsTuVwXyZ01234567890",
-  "name": "meeting-notes.txt",
-  "mime_type": "text/plain"
-}
+Arguments: { "api_key": "gkp_...", "name": "meeting-notes.txt", "mime_type": "text/plain" }
 ```
 
-### Example: Delete a file (if enabled)
+### Example: Delete a file
 
 ```
 Tool: drive__files_delete
-Arguments: {
-  "api_key": "gkp_aBcDeFgHiJkLmNoPqRsTuVwXyZ01234567890",
-  "file_id": "1abc..."
-}
+Arguments: { "api_key": "gkp_...", "file_id": "1abc..." }
 ```
+
+If a tool returns `403`, that route is disabled. Ask the admin to enable it — you cannot enable it yourself.
 
 ---
 
@@ -183,55 +153,18 @@ Dots in the route ID become double underscores. Examples:
 
 ---
 
-## All available tools
+## Possible tools
 
-### Drive
+Gatekeeper can expose tools from three modules. **Call `list_tools` to see which ones are actually available** — the admin decides which routes are enabled.
 
-| Tool | Default | What it does | Key parameters |
-|---|---|---|---|
-| `drive__files_list` | ✅ On | Search and list files | `query`, `page_size`, `order_by` |
-| `drive__files_get` | ✅ On | Get file metadata by ID | `file_id`, `fields` |
-| `drive__files_export` | ✅ On | Export Google Docs to PDF/DOCX | `file_id`, `mime_type` |
-| `drive__files_list_shared` | ✅ On | List files shared with you | `page_size` |
-| `drive__files_copy` | ❌ Off | Copy a file | `file_id`, `name` |
-| `drive__files_create` | ❌ Off | Create a new file | `name`, `mime_type`, `parents` |
-| `drive__files_update` | ❌ Off | Update file metadata | `file_id` |
-| `drive__files_delete` | ❌ Off | Permanently delete a file | `file_id` |
-| `drive__files_trash` | ❌ Off | Move file to trash (recoverable) | `file_id` |
-| `drive__permissions_list` | ✅ On | List who has access to a file | `file_id` |
-| `drive__permissions_get` | ✅ On | Get a specific permission | `file_id`, `permission_id` |
-| `drive__permissions_create` | ❌ Off | Share a file with someone | `file_id`, `email` |
-| `drive__permissions_delete` | ❌ Off | Remove someone's access | `file_id`, `permission_id` |
+### Drive module
+`drive__files_list`, `drive__files_get`, `drive__files_export`, `drive__files_list_shared`, `drive__files_copy`, `drive__files_create`, `drive__files_update`, `drive__files_delete`, `drive__files_trash`, `drive__permissions_list`, `drive__permissions_get`, `drive__permissions_create`, `drive__permissions_delete`
 
-### Gmail
+### Gmail module
+`gmail__messages_list`, `gmail__messages_get`, `gmail__messages_send`, `gmail__drafts_list`, `gmail__drafts_create`, `gmail__labels_list`
 
-| Tool | Default | What it does | Key parameters |
-|---|---|---|---|
-| `gmail__messages_list` | ✅ On | List messages (spam/trash filtered) | `query`, `page_size`, `label_ids` |
-| `gmail__messages_get` | ✅ On | Get a message by ID | `message_id`, `fields` |
-| `gmail__messages_send` | ❌ Off | Send an email | `raw` (base64) |
-| `gmail__drafts_list` | ✅ On | List drafts | `page_size` |
-| `gmail__drafts_create` | ❌ Off | Create a draft | `message` |
-| `gmail__labels_list` | ✅ On | List all labels | (none) |
-
-### Calendar
-
-| Tool | Default | What it does | Key parameters |
-|---|---|---|---|
-| `calendar__events_list` | ✅ On | List events on a calendar | `calendar_id` (use `primary`), `time_min`, `time_max`, `page_size` |
-| `calendar__events_get` | ✅ On | Get a specific event | `event_id`, `calendar_id` |
-| `calendar__events_create` | ❌ Off | Create an event | `calendar_id`, `summary`, `start`, `end` |
-| `calendar__events_update` | ❌ Off | Update an event | `event_id`, `calendar_id` |
-| `calendar__events_delete` | ❌ Off | Delete an event | `event_id`, `calendar_id` |
-| `calendar__calendars_list` | ✅ On | List user's calendars | (none) |
-| `calendar__calendarlist_list` | ✅ On | List calendar list entries | `page_size` |
-| `calendar__freebusy_query` | ✅ On | Check free/busy times | `time_min`, `time_max`, `calendar_ids` (array) |
-
-**❌ Off** = Disabled by default. If you call a disabled tool, you'll get:
-```json
-{"error": true, "status": 403, "message": "Route drive.files.create is disabled"}
-```
-Ask your admin to enable it. You cannot enable it yourself.
+### Calendar module
+`calendar__events_list`, `calendar__events_get`, `calendar__events_create`, `calendar__events_update`, `calendar__events_delete`, `calendar__calendars_list`, `calendar__calendarlist_list`, `calendar__freebusy_query`
 
 ---
 
@@ -240,7 +173,7 @@ Ask your admin to enable it. You cannot enable it yourself.
 | Status | Meaning | What to do |
 |---|---|---|
 | 401 | Invalid or missing API key | Check your API key — must include the `gkp_` prefix and be the full key |
-| 403 | Route is disabled | Ask the admin to enable the route in the Gatekeeper Admin UI |
+| 403 | Route is disabled | Ask the admin to enable the route. Do not retry — it will keep failing until they enable it. |
 | 401 | Google credentials not configured | The admin needs to run `gatekeeper auth` |
 | 404 | Route not found | Check the tool name — use `__` (double underscore) not `.` (dot) |
 | 502 | Google API error | Temporary upstream issue, retry after a moment |
@@ -266,6 +199,6 @@ These require HTTP Basic Auth (admin credentials). This is by design — Gatekee
 | 405 Method Not Allowed | Add `transport: sse` to your MCP config |
 | Connection refused | Is Gatekeeper running? Try `curl http://HOST:8080/health` |
 | "Invalid API key" | Verify the full key (including `gkp_` prefix) is in the `X-Gatekeeper-API-Key` header or `api_key` parameter |
-| "Route X is disabled" (403) | This is normal for write routes. Ask your admin to enable it |
+| "Route X is disabled" (403) | Ask your admin to enable the route. You cannot bypass this. |
 | "Google credentials not configured" | Tell the admin to run `gatekeeper auth` |
-| Connection drops / timeouts | SSE connections can time out. Increase `timeout` to 120 seconds. Most agents reconnect automatically |
+| Connection drops / timeouts | SSE connections can time out. Increase `timeout` to 120 seconds. Most agents reconnect automatically. |
