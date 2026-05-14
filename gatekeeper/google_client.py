@@ -279,7 +279,7 @@ class GoogleCredentialManager:
         print(f"\n{'=' * 60}")
         print("🔐 Google Account Authorization")
         print(f"{'=' * 60}")
-        print("\n  1. Open this URL on any device:")
+        print("\n  1. Open this URL in a private browser on any device:")
         print(f"     {verification_url}\n")
         print("  2. Enter this code:")
         print(f"     {user_code}\n")
@@ -478,7 +478,7 @@ class GoogleCredentialManager:
 
             auth_url, _ = flow.authorization_url(prompt="consent")
 
-            print("  1. Open this URL on any device (phone, laptop, tablet):")
+            print("  1. Open this URL in a private browser on any device (phone, laptop, tablet):")
             print(f"\n     {auth_url}\n")
             print("  2. Authorize Gatekeeper to access your Google data.")
             print("  3. After authorizing, your browser will redirect to a URL")
