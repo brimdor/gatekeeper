@@ -357,6 +357,34 @@ run_auth() {
     fi
 }
 
+run_service() {
+    printf "\n"
+    printf "${BOLD}  Step 5: Systemd Service${NC}\n"
+    printf "\n"
+    printf "  Gatekeeper can run as a systemd user service so it starts\n"
+    printf "  automatically on boot and restarts on failure.\n"
+    printf "\n"
+
+    if ! command -v systemctl &>/dev/null; then
+        warn "systemctl not found — skipping service setup."
+        printf "  You can start Gatekeeper manually with: ${CYAN}gatekeeper serve${NC}\n"
+        return
+    fi
+
+    # Check if systemd user session is available
+    if ! systemctl --user is-system-running &>/dev/null && ! systemctl --user status &>/dev/null; then
+        warn "systemd user sessions are not available — skipping service setup."
+        printf "  You can start Gatekeeper manually with: ${CYAN}gatekeeper serve${NC}\n"
+        return
+    fi
+
+    if tty_ask_yn "Install Gatekeeper as a systemd user service?" "y"; then
+        gatekeeper service install
+    else
+        printf "  Run ${CYAN}gatekeeper service install${NC} to set it up later.\n"
+    fi
+}
+
 print_success() {
     # Try to read admin password from secrets file
     local admin_pass=""
@@ -388,6 +416,8 @@ print_success() {
     printf "    ${CYAN}gatekeeper key create --name my-agent${NC}  — Create API key\n"
     printf "    ${CYAN}gatekeeper key list${NC}        — List API keys\n"
     printf "    ${CYAN}gatekeeper auth${NC}            — (Re-)authorize with Google\n"
+    printf "    ${CYAN}gatekeeper service status${NC}  — Check service status\n"
+    printf "    ${CYAN}gatekeeper service logs -f${NC}  — Tail service logs\n"
     printf "\n"
     printf "  Config file: ${CYAN}.env${NC}\n"
     printf "  Secrets:     ${CYAN}gatekeeper_secrets.json${NC}  (auto-generated)\n"
@@ -429,6 +459,7 @@ main() {
         setup_env
         run_init
         run_auth
+        run_service
         print_success
     fi
 }
