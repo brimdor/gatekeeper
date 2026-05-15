@@ -104,7 +104,15 @@ class GoogleProxy:
                 content={"error": True, "status": 404, "message": f"Route {route_id} not found"},
             )
 
-        # Apply request transforms
+        # Inject schema defaults for params the caller didn't provide.
+        # This must happen BEFORE policy transforms so that defaults can be
+        # capped/overridden by policy (e.g., maxResults capping pageSize).
+        schema_props = route.input_schema.get("properties", {})
+        for schema_key, schema_val in schema_props.items():
+            if "default" in schema_val and schema_key not in params:
+                params[schema_key] = schema_val["default"]
+
+        # Apply request transforms (policy caps, overrides, etc.)
         transformed_params = self.policy_engine.apply_request_transforms(
             params, decision.policy_config
         )
@@ -182,6 +190,15 @@ class GoogleProxy:
         if route_id in ("gmail.filters.create", "gmail.filters.update"):
             normalized_params = self._restructure_filter_body(normalized_params)
 
+        # Drive shortcut creation: when mimeType is shortcut and shortcutTargetId
+        # is provided, construct the shortcutDetails object that the Drive API
+        # requires. Without this, creating a shortcut returns 400 Bad Request.
+        if route_id == "drive.files.create" and "shortcutTargetId" in normalized_params:
+            shortcut_details = {"targetId": normalized_params.pop("shortcutTargetId")}
+            if "shortcutTargetMimeType" in normalized_params:
+                shortcut_details["targetMimeType"] = normalized_params.pop("shortcutTargetMimeType")
+            normalized_params["shortcutDetails"] = shortcut_details
+
         # Some routes (e.g. drive.files.update) require certain params to be
         # sent as URL query parameters rather than in the JSON body.
         # Google's API silently ignores addParents/removeParents if they're
@@ -200,7 +217,9 @@ class GoogleProxy:
         try:
             async with httpx.AsyncClient() as client:
                 if route.method == "GET":
-                    response = await client.get(url, params=body_params, headers=headers)
+                    # For GET requests, all params go as query params (no body)
+                    all_query = {**query_params, **body_params}
+                    response = await client.get(url, params=all_query, headers=headers)
                 elif route.method == "POST":
                     response = await client.post(url, json=body_params, headers=headers)
                 elif route.method == "PATCH":

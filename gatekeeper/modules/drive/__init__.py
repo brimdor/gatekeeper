@@ -39,8 +39,15 @@ class DriveModule(GoogleModule):
                             "description": "Sort field (e.g., 'modifiedTime')",
                             "default": "modifiedTime",
                         },
+                        "fields": {
+                            "type": "string",
+                            "description": "Fields to include in the response (e.g., 'files(id,name,mimeType)')",
+                            "default": "files(id,name,mimeType,modifiedTime,size,owners,shared,parents),nextPageToken",
+                        },
                     },
                 },
+                # fields must be a query param — Google Drive API ignores it in the body
+                query_params=["fields"],
                 default_policy={"max_results": 50},
             ),
             RouteDef(
@@ -58,11 +65,13 @@ class DriveModule(GoogleModule):
                         "fields": {
                             "type": "string",
                             "description": "Fields to include in the response",
-                            "default": "id,name,mimeType,size,modifiedTime,parents",
+                            "default": "id,name,mimeType,modifiedTime,size,owners,shared,parents",
                         },
                     },
                     "required": ["file_id"],
                 },
+                # fields must be a query param — Google Drive API ignores it in the body
+                query_params=["fields"],
                 default_policy={},
             ),
             RouteDef(
@@ -147,6 +156,20 @@ class DriveModule(GoogleModule):
                             "type": "array",
                             "items": {"type": "string"},
                             "description": "Parent folder IDs to add the file to",
+                        },
+                        "shortcut_target_id": {
+                            "type": "string",
+                            "description": (
+                                "File ID the shortcut points to "
+                                "(only used when mime_type is shortcut)"
+                            ),
+                        },
+                        "shortcut_target_mime_type": {
+                            "type": "string",
+                            "description": (
+                                "MIME type of the target file "
+                                "(only used when mime_type is shortcut)"
+                            ),
                         },
                     },
                     "required": ["name"],

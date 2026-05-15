@@ -1512,3 +1512,425 @@ class TestFilterBodyRestructuring:
 
         result = GoogleProxy._restructure_filter_body({})
         assert result == {}
+
+
+class TestQueryParams:
+    """Test that routes with query_params send those params as URL query params."""
+
+    @pytest.mark.asyncio
+    async def test_drive_files_update_add_parents_as_query_param(self, db_session):
+        """addParents/removeParents must go as query params, not JSON body."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.update",
+            enabled=True,
+            policy_config="{}",
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "fileABC"}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.patch = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.update",
+                params={
+                    "file_id": "fileABC",
+                    "name": "Renamed.txt",
+                    "add_parents": "parentFolder1",
+                    "remove_parents": "parentFolder2",
+                },
+                api_key_record=api_key,
+                request_method="PATCH",
+            )
+
+            call_args = mock_client.patch.call_args
+            # addParents and removeParents should be in query params
+            query_params = call_args[1].get("params", {})
+            assert "addParents" in query_params
+            assert "removeParents" in query_params
+            assert query_params["addParents"] == "parentFolder1"
+            assert query_params["removeParents"] == "parentFolder2"
+            # name should be in JSON body, NOT in query params
+            body_params = call_args[1].get("json", {})
+            assert body_params.get("name") == "Renamed.txt"
+            assert "addParents" not in body_params
+            assert "removeParents" not in body_params
+
+    @pytest.mark.asyncio
+    async def test_drive_files_get_fields_as_query_param(self, db_session):
+        """fields parameter on drive.files.get should go as a query param."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.get",
+            enabled=True,
+            policy_config="{}",
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "fileABC", "name": "test.txt"}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.get",
+                params={"file_id": "file123"},
+                api_key_record=api_key,
+                request_method="GET",
+            )
+
+            call_args = mock_client.get.call_args
+            # fields should appear in GET query params with its default value
+            params_sent = call_args[1].get("params", {})
+            assert "fields" in params_sent
+            assert "owners" in params_sent["fields"]
+
+    @pytest.mark.asyncio
+    async def test_drive_files_list_fields_default(self, db_session):
+        """drive.files.list should get a default fields parameter injected."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.list",
+            enabled=True,
+            policy_config="{}",
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"files": []}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.list",
+                params={},
+                api_key_record=api_key,
+                request_method="GET",
+            )
+
+            call_args = mock_client.get.call_args
+            params_sent = call_args[1].get("params", {})
+            assert "fields" in params_sent
+            assert "owners" in params_sent["fields"]
+            assert "nextPageToken" in params_sent["fields"]
+
+
+class TestShortcutCreation:
+    """Test that drive.files.create constructs shortcutDetails for shortcuts."""
+
+    @pytest.mark.asyncio
+    async def test_shortcut_details_construction(self, db_session):
+        """shortcutTargetId and shortcutTargetMimeType should become shortcutDetails."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.create",
+            enabled=True,
+            policy_config="{}",
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "shortcut123", "mimeType": "application/vnd.google-apps.shortcut"}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.create",
+                params={
+                    "name": "My Shortcut",
+                    "mime_type": "application/vnd.google-apps.shortcut",
+                    "parents": ["parentFolderId"],
+                    "shortcut_target_id": "targetFileId",
+                    "shortcut_target_mime_type": "application/vnd.google-apps.document",
+                },
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+            call_args = mock_client.post.call_args
+            body = call_args[1].get("json", {})
+            # shortcutDetails should be constructed
+            assert "shortcutDetails" in body
+            assert body["shortcutDetails"]["targetId"] == "targetFileId"
+            assert body["shortcutDetails"]["targetMimeType"] == "application/vnd.google-apps.document"
+            # Original flat params should be removed
+            assert "shortcutTargetId" not in body
+            assert "shortcutTargetMimeType" not in body
+            # Other body params preserved
+            assert body["name"] == "My Shortcut"
+            assert body["mimeType"] == "application/vnd.google-apps.shortcut"
+            assert body["parents"] == ["parentFolderId"]
+
+    @pytest.mark.asyncio
+    async def test_shortcut_without_target_mime_type(self, db_session):
+        """shortcutTargetId alone (without targetMimeType) should still work."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.create",
+            enabled=True,
+            policy_config="{}",
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "shortcut456"}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.create",
+                params={
+                    "name": "Shortcut No Mime",
+                    "mime_type": "application/vnd.google-apps.shortcut",
+                    "shortcut_target_id": "targetFileId",
+                },
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+            call_args = mock_client.post.call_args
+            body = call_args[1].get("json", {})
+            assert "shortcutDetails" in body
+            assert body["shortcutDetails"]["targetId"] == "targetFileId"
+            assert "targetMimeType" not in body["shortcutDetails"]
+
+    @pytest.mark.asyncio
+    async def test_regular_file_create_untouched(self, db_session):
+        """Regular file create (no shortcut) should not have shortcutDetails."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.create",
+            enabled=True,
+            policy_config="{}",
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "newFolder"}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.create",
+                params={
+                    "name": "New Folder",
+                    "mime_type": "application/vnd.google-apps.folder",
+                },
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+            call_args = mock_client.post.call_args
+            body = call_args[1].get("json", {})
+            assert "shortcutDetails" not in body
+            assert body["name"] == "New Folder"
+            assert body["mimeType"] == "application/vnd.google-apps.folder"
+
+
+class TestSchemaDefaults:
+    """Test that schema defaults are injected when caller omits params."""
+
+    @pytest.mark.asyncio
+    async def test_default_fields_injected_for_files_get(self, db_session):
+        """When fields is not provided, the default from the schema should be used."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.get",
+            enabled=True,
+            policy_config="{}",
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "fileABC"}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.get",
+                params={"file_id": "fileABC"},
+                api_key_record=api_key,
+                request_method="GET",
+            )
+
+            call_args = mock_client.get.call_args
+            params_sent = call_args[1].get("params", {})
+            # Default fields should be injected
+            assert "fields" in params_sent
+            # Should include the expanded default fields
+            assert "owners" in params_sent["fields"]
+            assert "shared" in params_sent["fields"]
+
+    @pytest.mark.asyncio
+    async def test_explicit_fields_override_default(self, db_session):
+        """When caller provides fields explicitly, the default should NOT be used."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.get",
+            enabled=True,
+            policy_config="{}",
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "fileABC"}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.get",
+                params={"file_id": "fileABC", "fields": "id,name"},
+                api_key_record=api_key,
+                request_method="GET",
+            )
+
+            call_args = mock_client.get.call_args
+            params_sent = call_args[1].get("params", {})
+            assert params_sent["fields"] == "id,name"
+
+
+class TestRouteDefQueryParams:
+    """Test that RouteDef correctly stores query_params."""
+
+    def test_query_params_default_empty(self):
+        from gatekeeper.modules.route import RouteDef
+
+        route = RouteDef(
+            route_id="test.route",
+            method="GET",
+            google_path="/test",
+        )
+        assert route.query_params == []
+
+    def test_query_params_stored(self):
+        from gatekeeper.modules.route import RouteDef
+
+        route = RouteDef(
+            route_id="test.route",
+            method="PATCH",
+            google_path="/test/{id}",
+            query_params=["addParents", "removeParents"],
+        )
+        assert route.query_params == ["addParents", "removeParents"]
