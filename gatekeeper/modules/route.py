@@ -20,6 +20,10 @@ class RouteDef(BaseModel):
     description: str = ""
     # Pydantic-style input schema for MCP tool definition
     input_schema: dict[str, Any] = {"type": "object", "properties": {}}
+    # Parameters that must be sent as URL query params (not JSON body).
+    # Required for Google APIs where certain params (e.g. addParents/removeParents
+    # on drive.files.update) are only accepted as query parameters.
+    query_params: list[str] = []
     # Default policy config
     default_policy: dict[str, Any] = {}
     # Whether this route is enabled by default

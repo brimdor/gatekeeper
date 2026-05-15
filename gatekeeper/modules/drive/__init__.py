@@ -178,9 +178,20 @@ class DriveModule(GoogleModule):
                             "type": "boolean",
                             "description": "Whether the file is starred",
                         },
+                        "add_parents": {
+                            "type": "string",
+                            "description": "Comma-separated parent folder IDs to add (for moving files)",
+                        },
+                        "remove_parents": {
+                            "type": "string",
+                            "description": "Comma-separated parent folder IDs to remove (for moving files)",
+                        },
                     },
                     "required": ["file_id"],
                 },
+                # addParents/removeParents MUST be query params, not body —
+                # Google Drive API silently ignores them in the PATCH body.
+                query_params=["addParents", "removeParents"],
                 default_policy={},
                 enabled_by_default=False,
             ),

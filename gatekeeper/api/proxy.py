@@ -182,26 +182,39 @@ class GoogleProxy:
         if route_id in ("gmail.filters.create", "gmail.filters.update"):
             normalized_params = self._restructure_filter_body(normalized_params)
 
+        # Some routes (e.g. drive.files.update) require certain params to be
+        # sent as URL query parameters rather than in the JSON body.
+        # Google's API silently ignores addParents/removeParents if they're
+        # in the PATCH body — they MUST be query params.
+        query_params = {}
+        body_params = {}
+        for key, value in normalized_params.items():
+            if key in route.query_params:
+                query_params[key] = value
+            else:
+                body_params[key] = value
+
         # Make the request
         headers = {"Authorization": f"Bearer {creds.token}"}
 
         try:
             async with httpx.AsyncClient() as client:
                 if route.method == "GET":
-                    response = await client.get(url, params=normalized_params, headers=headers)
+                    response = await client.get(url, params=body_params, headers=headers)
                 elif route.method == "POST":
-                    response = await client.post(url, json=normalized_params, headers=headers)
+                    response = await client.post(url, json=body_params, headers=headers)
                 elif route.method == "PATCH":
-                    response = await client.patch(url, json=normalized_params, headers=headers)
+                    response = await client.patch(url, params=query_params or None, json=body_params or None, headers=headers)
                 elif route.method == "DELETE":
-                    response = await client.delete(url, headers=headers)
+                    response = await client.delete(url, params=query_params or None, headers=headers)
                 elif route.method == "PUT":
-                    response = await client.put(url, json=normalized_params, headers=headers)
+                    response = await client.put(url, json=body_params, headers=headers)
                 else:
                     response = await client.request(
                         route.method,
                         url,
-                        json=normalized_params,
+                        params=query_params or None,
+                        json=body_params or None,
                         headers=headers,
                     )
 
