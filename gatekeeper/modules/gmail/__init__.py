@@ -38,8 +38,7 @@ class GmailModule(GoogleModule):
                         "q": {
                             "type": "string",
                             "description": (
-                                "Gmail search query "
-                                "(e.g., 'from:alice subject:report')"
+                                "Gmail search query (e.g., 'from:alice subject:report')"
                             ),
                         },
                         "max_results": {
