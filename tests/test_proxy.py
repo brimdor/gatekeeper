@@ -1686,7 +1686,10 @@ class TestShortcutCreation:
         ):
             mock_cm.get_credentials.return_value = _mock_creds()
             mock_response = MagicMock()
-            mock_response.json.return_value = {"id": "shortcut123", "mimeType": "application/vnd.google-apps.shortcut"}
+            mock_response.json.return_value = {
+                "id": "shortcut123",
+                "mimeType": "application/vnd.google-apps.shortcut",
+            }
             mock_response.status_code = 200
 
             mock_client = AsyncMock()
@@ -1714,7 +1717,10 @@ class TestShortcutCreation:
             # shortcutDetails should be constructed
             assert "shortcutDetails" in body
             assert body["shortcutDetails"]["targetId"] == "targetFileId"
-            assert body["shortcutDetails"]["targetMimeType"] == "application/vnd.google-apps.document"
+            assert (
+                body["shortcutDetails"]["targetMimeType"]
+                == "application/vnd.google-apps.document"
+            )
             # Original flat params should be removed
             assert "shortcutTargetId" not in body
             assert "shortcutTargetMimeType" not in body

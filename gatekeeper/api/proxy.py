@@ -219,15 +219,28 @@ class GoogleProxy:
                 if route.method == "GET":
                     # For GET requests, all params go as query params (no body)
                     all_query = {**query_params, **body_params}
-                    response = await client.get(url, params=all_query, headers=headers)
+                    response = await client.get(
+                        url, params=all_query, headers=headers
+                    )
                 elif route.method == "POST":
-                    response = await client.post(url, json=body_params, headers=headers)
+                    response = await client.post(
+                        url, json=body_params, headers=headers
+                    )
                 elif route.method == "PATCH":
-                    response = await client.patch(url, params=query_params or None, json=body_params or None, headers=headers)
+                    response = await client.patch(
+                        url,
+                        params=query_params or None,
+                        json=body_params or None,
+                        headers=headers,
+                    )
                 elif route.method == "DELETE":
-                    response = await client.delete(url, params=query_params or None, headers=headers)
+                    response = await client.delete(
+                        url, params=query_params or None, headers=headers
+                    )
                 elif route.method == "PUT":
-                    response = await client.put(url, json=body_params, headers=headers)
+                    response = await client.put(
+                        url, json=body_params, headers=headers
+                    )
                 else:
                     response = await client.request(
                         route.method,

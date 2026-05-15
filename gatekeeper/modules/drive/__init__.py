@@ -41,8 +41,14 @@ class DriveModule(GoogleModule):
                         },
                         "fields": {
                             "type": "string",
-                            "description": "Fields to include in the response (e.g., 'files(id,name,mimeType)')",
-                            "default": "files(id,name,mimeType,modifiedTime,size,owners,shared,parents),nextPageToken",
+                            "description": (
+                                "Fields to include in the response "
+                                "(e.g., 'files(id,name,mimeType)')"
+                            ),
+                            "default": (
+                                "files(id,name,mimeType,modifiedTime,"
+                                "size,owners,shared,parents),nextPageToken"
+                            ),
                         },
                     },
                 },
@@ -203,11 +209,17 @@ class DriveModule(GoogleModule):
                         },
                         "add_parents": {
                             "type": "string",
-                            "description": "Comma-separated parent folder IDs to add (for moving files)",
+                            "description": (
+                                "Comma-separated parent folder IDs "
+                                "to add (for moving files)"
+                            ),
                         },
                         "remove_parents": {
                             "type": "string",
-                            "description": "Comma-separated parent folder IDs to remove (for moving files)",
+                            "description": (
+                                "Comma-separated parent folder IDs "
+                                "to remove (for moving files)"
+                            ),
                         },
                     },
                     "required": ["file_id"],

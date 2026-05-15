@@ -466,7 +466,7 @@ def _cli_status():
     print(f"  Google OAuth: {oauth_status}")
     print(f"  Admin User:   {settings.admin_username}")
     # Service status — check both scopes
-    from gatekeeper.service import _is_systemd_available, _unit_exists
+    from gatekeeper.service import _unit_exists
 
     service_found = False
     for scope_label, scope in [("User", "user"), ("System", "system")]:

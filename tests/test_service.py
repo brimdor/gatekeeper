@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 from gatekeeper.service import (
     SERVICE_SYSTEM_TEMPLATE,
-    SERVICE_USER_TEMPLATE,
     SERVICE_UNIT,
+    SERVICE_USER_TEMPLATE,
     _is_systemd_available,
     _resolve_exec_path,
     _resolve_work_dir,
@@ -21,7 +21,6 @@ from gatekeeper.service import (
     restart_service,
     uninstall_service,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -206,7 +205,7 @@ class TestInstallService:
                 else user_unit
             )),
             patch("gatekeeper.service.SYSTEMD_USER_DIR", user_dir),
-            patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
+            patch("gatekeeper.service._systemctl", return_value=mock_result),
             patch("gatekeeper.service.subprocess.run", return_value=mock_result),
         ):
             result = install_service(skip_prompt=True, scope="system")
@@ -251,23 +250,29 @@ class TestUninstallService:
         with (
             patch("gatekeeper.service._unit_exists", return_value=True),
             patch("gatekeeper.service._run", return_value=mock_result),
-            patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
+            patch("gatekeeper.service._systemctl", return_value=mock_result),
         ):
-            with patch("gatekeeper.service._unit_path", return_value=Path("/etc/systemd/system/gatekeeper.service")):
-                result = uninstall_service(scope="system")
-                assert result is True
+            result = uninstall_service(scope="system")
+            assert result is True
 
     def test_uninstall_system_rm_failure(self, tmp_path):
         """Should return False and print error when sudo rm fails."""
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
-        failed_result = MagicMock(returncode=1, stdout="", stderr="rm: Permission denied")
 
         with (
             patch("gatekeeper.service._unit_exists", return_value=True),
             patch("gatekeeper.service._systemctl", return_value=mock_result),
         ):
-            with patch("gatekeeper.service._unit_path", return_value=Path("/etc/systemd/system/gatekeeper.service")):
-                with patch("gatekeeper.service._run", side_effect=subprocess.CalledProcessError(1, "sudo rm", stderr="Permission denied")):
+            with patch(
+                "gatekeeper.service._unit_path",
+                return_value=Path("/etc/systemd/system/gatekeeper.service"),
+            ):
+                with patch(
+                    "gatekeeper.service._run",
+                    side_effect=subprocess.CalledProcessError(
+                        1, "sudo rm", stderr="Permission denied"
+                    ),
+                ):
                     result = uninstall_service(scope="system")
                     assert result is False
 
@@ -429,7 +434,12 @@ class TestUnitExists:
         """Should use sudo test -f for system scope."""
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with (
-            patch("gatekeeper.service._unit_path", return_value=Path("/etc/systemd/system/gatekeeper.service")),
+            patch(
+                "gatekeeper.service._unit_path",
+                return_value=Path(
+                    "/etc/systemd/system/gatekeeper.service"
+                ),
+            ),
             patch("gatekeeper.service._run", return_value=mock_result),
         ):
             assert _unit_exists("system") is True
@@ -438,7 +448,12 @@ class TestUnitExists:
         """Should return False when sudo test -f fails for system scope."""
         mock_result = MagicMock(returncode=1, stdout="", stderr="")
         with (
-            patch("gatekeeper.service._unit_path", return_value=Path("/etc/systemd/system/gatekeeper.service")),
+            patch(
+                "gatekeeper.service._unit_path",
+                return_value=Path(
+                    "/etc/systemd/system/gatekeeper.service"
+                ),
+            ),
             patch("gatekeeper.service._run", return_value=mock_result),
         ):
             assert _unit_exists("system") is False
@@ -448,9 +463,12 @@ class TestDetectScope:
     """Tests for _detect_scope()."""
 
     def test_detect_system_when_no_user_session(self):
-        """Should return 'system' when system systemd available but user session not."""
+        """Should return 'system' when system systemd available but user not."""
         with (
-            patch("gatekeeper.service._is_systemd_available", side_effect=lambda scope: scope == "system"),
+            patch(
+                "gatekeeper.service._is_systemd_available",
+                side_effect=lambda scope: scope == "system",
+            ),
         ):
             from gatekeeper.service import _detect_scope
             assert _detect_scope() == "system"
@@ -466,7 +484,11 @@ class TestDetectScope:
     def test_detect_user_when_only_user_available(self):
         """Should return 'user' when only user scope available."""
         with (
-            patch("gatekeeper.service._is_systemd_available", side_effect=lambda scope: scope == "user"),
+            patch(
+                "gatekeeper.service._is_systemd_available",
+                side_effect=lambda scope: scope == "user",
+            ),
         ):
             from gatekeeper.service import _detect_scope
             assert _detect_scope() == "user"
+
