@@ -235,9 +235,7 @@ def cli():
     subparsers.add_parser("status", help="Show configuration status")
 
     # service
-    service_parser = subparsers.add_parser(
-        "service", help="Manage Gatekeeper as a systemd service"
-    )
+    service_parser = subparsers.add_parser("service", help="Manage Gatekeeper as a systemd service")
     service_parser.add_argument(
         "--scope",
         choices=("user", "system", "auto"),
@@ -256,9 +254,7 @@ def cli():
         "install",
         help="Install and enable the systemd service (--scope system recommended for servers)",
     )
-    service_subparsers.add_parser(
-        "uninstall", help="Stop, disable, and remove the systemd service"
-    )
+    service_subparsers.add_parser("uninstall", help="Stop, disable, and remove the systemd service")
     service_subparsers.add_parser("enable", help="Enable and start the service")
     service_subparsers.add_parser("disable", help="Stop and disable the service")
     service_subparsers.add_parser("restart", help="Restart the service")

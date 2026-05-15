@@ -78,9 +78,7 @@ def _run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, check=check, capture_output=True, text=True)
 
 
-def _systemctl(
-    *args: str, check: bool = True, scope: str = "user"
-) -> subprocess.CompletedProcess:
+def _systemctl(*args: str, check: bool = True, scope: str = "user") -> subprocess.CompletedProcess:
     """Run a systemctl command for the given scope.
 
     Parameters

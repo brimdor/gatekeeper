@@ -1718,8 +1718,7 @@ class TestShortcutCreation:
             assert "shortcutDetails" in body
             assert body["shortcutDetails"]["targetId"] == "targetFileId"
             assert (
-                body["shortcutDetails"]["targetMimeType"]
-                == "application/vnd.google-apps.document"
+                body["shortcutDetails"]["targetMimeType"] == "application/vnd.google-apps.document"
             )
             # Original flat params should be removed
             assert "shortcutTargetId" not in body

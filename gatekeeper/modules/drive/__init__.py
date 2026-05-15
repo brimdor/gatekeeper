@@ -210,15 +210,13 @@ class DriveModule(GoogleModule):
                         "add_parents": {
                             "type": "string",
                             "description": (
-                                "Comma-separated parent folder IDs "
-                                "to add (for moving files)"
+                                "Comma-separated parent folder IDs to add (for moving files)"
                             ),
                         },
                         "remove_parents": {
                             "type": "string",
                             "description": (
-                                "Comma-separated parent folder IDs "
-                                "to remove (for moving files)"
+                                "Comma-separated parent folder IDs to remove (for moving files)"
                             ),
                         },
                     },

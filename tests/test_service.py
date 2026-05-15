@@ -197,13 +197,20 @@ class TestInstallService:
             patch("gatekeeper.service._is_systemd_available", return_value=True),
             patch("gatekeeper.service._resolve_exec_path", return_value="/usr/bin/gatekeeper"),
             patch("gatekeeper.service._resolve_work_dir", return_value="/home/user/gatekeeper"),
-            patch("gatekeeper.service._unit_exists", side_effect=lambda scope="system": (
-                scope == "user"  # user service exists, system doesn't yet
-            )),
-            patch("gatekeeper.service._unit_path", side_effect=lambda scope="system": (
-                Path("/etc/systemd/system/gatekeeper.service") if scope == "system"
-                else user_unit
-            )),
+            patch(
+                "gatekeeper.service._unit_exists",
+                side_effect=lambda scope="system": (
+                    scope == "user"  # user service exists, system doesn't yet
+                ),
+            ),
+            patch(
+                "gatekeeper.service._unit_path",
+                side_effect=lambda scope="system": (
+                    Path("/etc/systemd/system/gatekeeper.service")
+                    if scope == "system"
+                    else user_unit
+                ),
+            ),
             patch("gatekeeper.service.SYSTEMD_USER_DIR", user_dir),
             patch("gatekeeper.service._systemctl", return_value=mock_result),
             patch("gatekeeper.service.subprocess.run", return_value=mock_result),
@@ -436,9 +443,7 @@ class TestUnitExists:
         with (
             patch(
                 "gatekeeper.service._unit_path",
-                return_value=Path(
-                    "/etc/systemd/system/gatekeeper.service"
-                ),
+                return_value=Path("/etc/systemd/system/gatekeeper.service"),
             ),
             patch("gatekeeper.service._run", return_value=mock_result),
         ):
@@ -450,9 +455,7 @@ class TestUnitExists:
         with (
             patch(
                 "gatekeeper.service._unit_path",
-                return_value=Path(
-                    "/etc/systemd/system/gatekeeper.service"
-                ),
+                return_value=Path("/etc/systemd/system/gatekeeper.service"),
             ),
             patch("gatekeeper.service._run", return_value=mock_result),
         ):
@@ -471,6 +474,7 @@ class TestDetectScope:
             ),
         ):
             from gatekeeper.service import _detect_scope
+
             assert _detect_scope() == "system"
 
     def test_detect_user_when_both_available(self):
@@ -479,6 +483,7 @@ class TestDetectScope:
             patch("gatekeeper.service._is_systemd_available", return_value=True),
         ):
             from gatekeeper.service import _detect_scope
+
             assert _detect_scope() == "user"
 
     def test_detect_user_when_only_user_available(self):
@@ -490,5 +495,5 @@ class TestDetectScope:
             ),
         ):
             from gatekeeper.service import _detect_scope
-            assert _detect_scope() == "user"
 
+            assert _detect_scope() == "user"
