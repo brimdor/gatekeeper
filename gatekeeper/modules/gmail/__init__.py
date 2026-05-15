@@ -35,9 +35,12 @@ class GmailModule(GoogleModule):
                             "items": {"type": "string"},
                             "description": "Label IDs to filter by (e.g., ['INBOX', 'UNREAD'])",
                         },
-                        "query": {
+                        "q": {
                             "type": "string",
-                            "description": "Gmail search query (e.g., 'from:alice subject:report')",
+                            "description": (
+                                "Gmail search query "
+                                "(e.g., 'from:alice subject:report')"
+                            ),
                         },
                         "max_results": {
                             "type": "integer",
@@ -653,7 +656,7 @@ class GmailModule(GoogleModule):
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "query": {
+                        "q": {
                             "type": "string",
                             "description": "Gmail search query",
                         },

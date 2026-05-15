@@ -25,9 +25,14 @@ class DriveModule(GoogleModule):
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "query": {
+                        "q": {
                             "type": "string",
-                            "description": "Drive query string (e.g., \"name contains 'report'\")",
+                            "description": (
+                                "Drive query string "
+                                "(e.g., \"name contains 'report'\"). "
+                                "See: https://developers.google.com/"
+                                "drive/api/v3/search-files"
+                            ),
                         },
                         "page_size": {
                             "type": "integer",
