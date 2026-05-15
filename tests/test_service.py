@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -12,6 +13,7 @@ from gatekeeper.service import (
     _is_systemd_available,
     _resolve_exec_path,
     _resolve_work_dir,
+    _unit_exists,
     _unit_path,
     disable_service,
     enable_service,
@@ -93,7 +95,7 @@ class TestServiceTemplates:
         assert "WorkingDirectory=/home/brimdor/gatekeeper" in unit
         assert "User=brimdor" in unit
         assert "Group=brimdor" in unit
-        assert "EnvironmentFile=/home/brimdor/gatekeeper/.env" in unit
+        assert "EnvironmentFile=-/home/brimdor/gatekeeper/.env" in unit
         assert "WantedBy=multi-user.target" in unit
         # Should NOT have user-session target
         assert "default.target" not in unit
@@ -196,6 +198,9 @@ class TestInstallService:
             patch("gatekeeper.service._is_systemd_available", return_value=True),
             patch("gatekeeper.service._resolve_exec_path", return_value="/usr/bin/gatekeeper"),
             patch("gatekeeper.service._resolve_work_dir", return_value="/home/user/gatekeeper"),
+            patch("gatekeeper.service._unit_exists", side_effect=lambda scope="system": (
+                scope == "user"  # user service exists, system doesn't yet
+            )),
             patch("gatekeeper.service._unit_path", side_effect=lambda scope="system": (
                 Path("/etc/systemd/system/gatekeeper.service") if scope == "system"
                 else user_unit
@@ -244,13 +249,27 @@ class TestUninstallService:
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
 
         with (
-            patch("gatekeeper.service._run", return_value=mock_result) as mock_run,
+            patch("gatekeeper.service._unit_exists", return_value=True),
+            patch("gatekeeper.service._run", return_value=mock_result),
             patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
         ):
-            # Mock the test -f check to indicate file exists
             with patch("gatekeeper.service._unit_path", return_value=Path("/etc/systemd/system/gatekeeper.service")):
                 result = uninstall_service(scope="system")
                 assert result is True
+
+    def test_uninstall_system_rm_failure(self, tmp_path):
+        """Should return False and print error when sudo rm fails."""
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        failed_result = MagicMock(returncode=1, stdout="", stderr="rm: Permission denied")
+
+        with (
+            patch("gatekeeper.service._unit_exists", return_value=True),
+            patch("gatekeeper.service._systemctl", return_value=mock_result),
+        ):
+            with patch("gatekeeper.service._unit_path", return_value=Path("/etc/systemd/system/gatekeeper.service")):
+                with patch("gatekeeper.service._run", side_effect=subprocess.CalledProcessError(1, "sudo rm", stderr="Permission denied")):
+                    result = uninstall_service(scope="system")
+                    assert result is False
 
 
 # ---------------------------------------------------------------------------
@@ -388,3 +407,66 @@ class TestSystemdAvailability:
         mock_result = MagicMock(returncode=0, stdout="running", stderr="")
         with patch("gatekeeper.service._run", return_value=mock_result):
             assert _is_systemd_available("system") is True
+
+
+class TestUnitExists:
+    """Tests for _unit_exists()."""
+
+    def test_unit_exists_user_scope(self, tmp_path):
+        """Should check Path.exists() for user scope."""
+        unit_path = tmp_path / "gatekeeper.service"
+        unit_path.write_text("[Unit]\n")
+        with patch("gatekeeper.service._unit_path", return_value=unit_path):
+            assert _unit_exists("user") is True
+
+    def test_unit_not_exists_user_scope(self, tmp_path):
+        """Should return False when user unit file doesn't exist."""
+        unit_path = tmp_path / "nonexistent.service"
+        with patch("gatekeeper.service._unit_path", return_value=unit_path):
+            assert _unit_exists("user") is False
+
+    def test_unit_exists_system_scope(self):
+        """Should use sudo test -f for system scope."""
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        with (
+            patch("gatekeeper.service._unit_path", return_value=Path("/etc/systemd/system/gatekeeper.service")),
+            patch("gatekeeper.service._run", return_value=mock_result),
+        ):
+            assert _unit_exists("system") is True
+
+    def test_unit_not_exists_system_scope(self):
+        """Should return False when sudo test -f fails for system scope."""
+        mock_result = MagicMock(returncode=1, stdout="", stderr="")
+        with (
+            patch("gatekeeper.service._unit_path", return_value=Path("/etc/systemd/system/gatekeeper.service")),
+            patch("gatekeeper.service._run", return_value=mock_result),
+        ):
+            assert _unit_exists("system") is False
+
+
+class TestDetectScope:
+    """Tests for _detect_scope()."""
+
+    def test_detect_system_when_no_user_session(self):
+        """Should return 'system' when system systemd available but user session not."""
+        with (
+            patch("gatekeeper.service._is_systemd_available", side_effect=lambda scope: scope == "system"),
+        ):
+            from gatekeeper.service import _detect_scope
+            assert _detect_scope() == "system"
+
+    def test_detect_user_when_both_available(self):
+        """Should return 'user' when both scopes available."""
+        with (
+            patch("gatekeeper.service._is_systemd_available", return_value=True),
+        ):
+            from gatekeeper.service import _detect_scope
+            assert _detect_scope() == "user"
+
+    def test_detect_user_when_only_user_available(self):
+        """Should return 'user' when only user scope available."""
+        with (
+            patch("gatekeeper.service._is_systemd_available", side_effect=lambda scope: scope == "user"),
+        ):
+            from gatekeeper.service import _detect_scope
+            assert _detect_scope() == "user"

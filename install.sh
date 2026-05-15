@@ -460,11 +460,8 @@ run_service() {
         return
     fi
 
-    # Default to system on Linux servers (where sudo is available)
-    local default_scope="system"
-    if [[ "$(uname)" == "Darwin" ]]; then
-        default_scope="user"
-    fi
+    # Default to user scope (safer for desktops, doesn't need sudo)
+    local default_scope="user"
     # Check if systemd user sessions are available
     if ! systemctl --user is-system-running &>/dev/null && ! systemctl --user status &>/dev/null; then
         if ! command -v sudo &>/dev/null; then
@@ -472,7 +469,7 @@ run_service() {
             printf "  You can start Gatekeeper manually with: ${CYAN}gatekeeper serve${NC}\n"
             return
         fi
-        # Only system scope is viable
+        # Only system scope is viable when user sessions are unavailable
         default_scope="system"
         info "systemd user sessions unavailable — will install as system service."
     fi
@@ -485,7 +482,7 @@ run_service() {
     if tty_ask_yn "$scope_question" "y"; then
         # Ask which scope
         local scope="$default_scope"
-        if tty_ask_yn "Use system scope? (starts at boot, no user session needed) [Y/n]"; then
+        if tty_ask_yn "Use system scope? (starts at boot, no user session needed) [y/N]"; then
             scope="system"
         else
             scope="user"

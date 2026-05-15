@@ -15,6 +15,7 @@ mode for servers and always-on deployments. System commands require
 from __future__ import annotations
 
 import getpass
+import grp
 import os
 import shutil
 import subprocess
@@ -60,7 +61,7 @@ WorkingDirectory={work_dir}
 ExecStart={exec_path} serve
 Restart=on-failure
 RestartSec=5
-EnvironmentFile={env_file}
+EnvironmentFile=-{env_file}
 
 [Install]
 WantedBy=multi-user.target
@@ -150,6 +151,18 @@ def _unit_path(scope: str = "user") -> Path:
     return SYSTEMD_USER_DIR / SERVICE_UNIT
 
 
+def _unit_exists(scope: str = "user") -> bool:
+    """Check whether a service unit file exists for the given scope.
+
+    For system scope, uses ``sudo test -f`` since /etc/systemd/system/
+    may have restricted permissions. For user scope, uses Path.exists().
+    """
+    unit = _unit_path(scope)
+    if scope == "system":
+        return _run(["sudo", "test", "-f", str(unit)], check=False).returncode == 0
+    return unit.exists()
+
+
 def _detect_scope() -> str:
     """Auto-detect which scope to use.
 
@@ -206,10 +219,14 @@ def install_service(skip_prompt: bool = False, scope: str = "user") -> bool:
     if scope == "system":
         # System service template: needs User/Group/EnvironmentFile
         username = getpass.getuser()
-        import grp
-
         groupname = grp.getgrgid(os.getgid()).gr_name
         env_file = os.path.join(work_dir, ".env")
+
+        if not os.path.exists(env_file):
+            print(f"⚠️  No .env file found at {env_file}")
+            print("   The system service expects EnvironmentFile to load config.")
+            print("   Create it before starting the service, or the service may fail.")
+            # Continue anyway — EnvironmentFile=- prefix makes it non-fatal
 
         unit_content = SERVICE_SYSTEM_TEMPLATE.format(
             user=username,
@@ -248,14 +265,19 @@ def install_service(skip_prompt: bool = False, scope: str = "user") -> bool:
     _systemctl("daemon-reload", scope=scope)
 
     # If migrating from user to system, stop and disable the old user service
-    if scope == "system" and _unit_path("user").exists():
+    if scope == "system" and _unit_exists("user"):
         print("⚠️  Existing user service detected — stopping and disabling it...")
         _systemctl("stop", SERVICE_NAME, check=False, scope="user")
         _systemctl("disable", SERVICE_NAME, check=False, scope="user")
         # Remove the user unit file
         old_path = _unit_path("user")
-        old_path.unlink(missing_ok=True)
-        print(f"🗑️  Removed user service unit at {old_path}")
+        try:
+            old_path.unlink(missing_ok=True)
+            print(f"🗑️  Removed user service unit at {old_path}")
+        except OSError as e:
+            print(f"⚠️  Could not remove user service unit: {e}")
+            print("   You can remove it manually:")
+            print(f"     rm {old_path}")
         _systemctl("daemon-reload", scope="user")
 
     # Enable and start
@@ -297,15 +319,9 @@ def uninstall_service(scope: str = "user") -> bool:
     scope : str
         ``"user"`` or ``"system"``.
     """
-    unit = _unit_path(scope)
-    if scope == "system":
-        # Check system path even without sudo
-        result = _run(["test", "-f", str(unit)], check=False)
-        if result.returncode != 0:
-            print("ℹ️  Gatekeeper system service is not installed.")
-            return True
-    elif not unit.exists():
-        print("ℹ️  Gatekeeper user service is not installed.")
+    if not _unit_exists(scope):
+        scope_label = "system" if scope == "system" else "user"
+        print(f"ℹ️  Gatekeeper {scope_label} service is not installed.")
         return True
 
     scope_label = "system" if scope == "system" else "user"
@@ -313,8 +329,14 @@ def uninstall_service(scope: str = "user") -> bool:
     _systemctl("stop", SERVICE_NAME, check=False, scope=scope)
     _systemctl("disable", SERVICE_NAME, check=False, scope=scope)
 
+    unit = _unit_path(scope)
     if scope == "system":
-        _run(["sudo", "rm", "-f", str(unit)], check=True)
+        try:
+            _run(["sudo", "rm", "-f", str(unit)], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to remove system unit file: {e.stderr.strip() if e.stderr else e}")
+            print(f"   Try manually: sudo rm {unit}")
+            return False
     else:
         unit.unlink(missing_ok=True)
 
@@ -332,14 +354,7 @@ def enable_service(scope: str = "user") -> bool:
     scope : str
         ``"user"`` or ``"system"``.
     """
-    unit = _unit_path(scope)
-    # For system scope, the file check needs sudo to detect
-    exists = (
-        _run(["test", "-f", str(unit)], check=False).returncode == 0
-        if scope == "system"
-        else unit.exists()
-    )
-    if not exists:
+    if not _unit_exists(scope):
         scope_label = "system" if scope == "system" else "user"
         print(
             f"❌ {scope_label.capitalize()} service unit not found."
@@ -377,13 +392,7 @@ def restart_service(scope: str = "user") -> bool:
     scope : str
         ``"user"`` or ``"system"``.
     """
-    unit = _unit_path(scope)
-    exists = (
-        _run(["test", "-f", str(unit)], check=False).returncode == 0
-        if scope == "system"
-        else unit.exists()
-    )
-    if not exists:
+    if not _unit_exists(scope):
         scope_label = "system" if scope == "system" else "user"
         print(
             f"❌ {scope_label.capitalize()} service unit not found."
@@ -405,13 +414,7 @@ def service_status(scope: str = "user") -> None:
     scope : str
         ``"user"`` or ``"system"``.
     """
-    unit = _unit_path(scope)
-    exists = (
-        _run(["test", "-f", str(unit)], check=False).returncode == 0
-        if scope == "system"
-        else unit.exists()
-    )
-    if not exists:
+    if not _unit_exists(scope):
         scope_label = "system" if scope == "system" else "user"
         print(f"ℹ️  Gatekeeper {scope_label} service is not installed.")
         print(f"   Run 'gatekeeper service install --scope {scope}' to set it up.")

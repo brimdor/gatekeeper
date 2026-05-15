@@ -240,12 +240,13 @@ def cli():
     )
     service_parser.add_argument(
         "--scope",
-        choices=("user", "system"),
-        default="user",
+        choices=("user", "system", "auto"),
+        default="auto",
         help=(
-            "Service scope: 'user' (default) runs as a user service tied to login"
+            "Service scope: 'user' runs as a user service tied to login"
             " sessions; 'system' runs as a system service that starts at boot"
-            " and requires sudo. Recommended for servers."
+            " and requires sudo (recommended for servers); 'auto' detects"
+            " the best scope (system when no user session, user otherwise)."
         ),
     )
     service_subparsers = service_parser.add_subparsers(
@@ -313,6 +314,7 @@ def cli():
 
     elif args.command == "service":
         from gatekeeper.service import (
+            _detect_scope,
             disable_service,
             enable_service,
             install_service,
@@ -323,6 +325,8 @@ def cli():
         )
 
         scope = args.scope
+        if scope == "auto":
+            scope = _detect_scope()
         handlers = {
             "install": lambda: install_service(scope=scope),
             "uninstall": lambda: uninstall_service(scope=scope),
@@ -462,17 +466,12 @@ def _cli_status():
     print(f"  Google OAuth: {oauth_status}")
     print(f"  Admin User:   {settings.admin_username}")
     # Service status — check both scopes
-    from gatekeeper.service import _is_systemd_available, _run, _unit_path
+    from gatekeeper.service import _is_systemd_available, _unit_exists
 
     service_found = False
     for scope_label, scope in [("User", "user"), ("System", "system")]:
-        unit = _unit_path(scope)
-        if scope == "system":
-            # Cannot check without sudo; try readably
-            exists = _run(["test", "-f", str(unit)], check=False).returncode == 0
-        else:
-            exists = unit.exists()
-        if exists:
+        if _unit_exists(scope):
+            unit = _unit_path(scope)
             print(f"  Service:      ✅ Installed ({unit}) [{scope_label}]")
             service_found = True
     if not service_found:
