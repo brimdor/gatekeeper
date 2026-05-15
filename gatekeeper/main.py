@@ -236,14 +236,27 @@ def cli():
 
     # service
     service_parser = subparsers.add_parser(
-        "service", help="Manage Gatekeeper as a systemd user service"
+        "service", help="Manage Gatekeeper as a systemd service"
+    )
+    service_parser.add_argument(
+        "--scope",
+        choices=("user", "system"),
+        default="user",
+        help=(
+            "Service scope: 'user' (default) runs as a user service tied to login"
+            " sessions; 'system' runs as a system service that starts at boot"
+            " and requires sudo. Recommended for servers."
+        ),
     )
     service_subparsers = service_parser.add_subparsers(
         dest="service_command", help="Service commands"
     )
-    service_subparsers.add_parser("install", help="Install and enable the systemd user service")
     service_subparsers.add_parser(
-        "uninstall", help="Stop, disable, and remove the systemd user service"
+        "install",
+        help="Install and enable the systemd service (--scope system recommended for servers)",
+    )
+    service_subparsers.add_parser(
+        "uninstall", help="Stop, disable, and remove the systemd service"
     )
     service_subparsers.add_parser("enable", help="Enable and start the service")
     service_subparsers.add_parser("disable", help="Stop and disable the service")
@@ -309,14 +322,15 @@ def cli():
             uninstall_service,
         )
 
+        scope = args.scope
         handlers = {
-            "install": lambda: install_service(),
-            "uninstall": lambda: uninstall_service(),
-            "enable": lambda: enable_service(),
-            "disable": lambda: disable_service(),
-            "restart": lambda: restart_service(),
-            "status": lambda: service_status(),
-            "logs": lambda: service_logs(follow=args.follow),
+            "install": lambda: install_service(scope=scope),
+            "uninstall": lambda: uninstall_service(scope=scope),
+            "enable": lambda: enable_service(scope=scope),
+            "disable": lambda: disable_service(scope=scope),
+            "restart": lambda: restart_service(scope=scope),
+            "status": lambda: service_status(scope=scope),
+            "logs": lambda: service_logs(follow=args.follow, scope=scope),
         }
         handler = handlers.get(args.service_command)
         if handler:
@@ -447,15 +461,25 @@ def _cli_status():
     oauth_status = "✅ Configured" if settings.google_client_id else "❌ Not configured"
     print(f"  Google OAuth: {oauth_status}")
     print(f"  Admin User:   {settings.admin_username}")
-    # Service status
-    if _is_systemd_available():
-        unit = _unit_path()
-        if unit.exists():
-            print(f"  Service:      ✅ Installed ({unit})")
+    # Service status — check both scopes
+    from gatekeeper.service import _is_systemd_available, _run, _unit_path
+
+    service_found = False
+    for scope_label, scope in [("User", "user"), ("System", "system")]:
+        unit = _unit_path(scope)
+        if scope == "system":
+            # Cannot check without sudo; try readably
+            exists = _run(["test", "-f", str(unit)], check=False).returncode == 0
         else:
+            exists = unit.exists()
+        if exists:
+            print(f"  Service:      ✅ Installed ({unit}) [{scope_label}]")
+            service_found = True
+    if not service_found:
+        if _is_systemd_available("user") or _is_systemd_available("system"):
             print("  Service:      ❌ Not installed (run: gatekeeper service install)")
-    else:
-        print("  Service:      — systemd not available")
+        else:
+            print("  Service:      — systemd not available")
     print(f"{'=' * 50}\n")
 
 

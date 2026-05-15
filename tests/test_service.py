@@ -1,4 +1,4 @@
-"""Tests for gatekeeper.service — systemd user service management."""
+"""Tests for gatekeeper.service — systemd service management (user and system scope)."""
 
 from __future__ import annotations
 
@@ -6,17 +6,20 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from gatekeeper.service import (
-    SERVICE_TEMPLATE,
+    SERVICE_SYSTEM_TEMPLATE,
+    SERVICE_USER_TEMPLATE,
     SERVICE_UNIT,
     _is_systemd_available,
     _resolve_exec_path,
     _resolve_work_dir,
+    _unit_path,
     disable_service,
     enable_service,
     install_service,
     restart_service,
     uninstall_service,
 )
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -44,21 +47,28 @@ def _make_settings(tmp_path):
 class TestUnitPath:
     """Tests for _unit_path and unit file generation."""
 
-    def test_unit_path_under_systemd_dir(self, tmp_path):
-        """Unit file should live under ~/.config/systemd/user/."""
-        expected_unit = tmp_path / "systemd" / SERVICE_UNIT
-        with patch("gatekeeper.service._unit_path", return_value=expected_unit):
-            result = Path(str(expected_unit))
-            assert result.name == "gatekeeper.service"
-            assert "systemd" in str(result)
+    def test_unit_path_user_scope(self, tmp_path):
+        """User scope unit file should live under ~/.config/systemd/user/."""
+        result = _unit_path("user")
+        assert result.name == "gatekeeper.service"
+        assert ".config/systemd/user" in str(result)
+
+    def test_unit_path_system_scope(self):
+        """System scope unit file should live under /etc/systemd/system/."""
+        result = _unit_path("system")
+        assert result.name == "gatekeeper.service"
+        assert "/etc/systemd/system" in str(result)
 
 
-class TestServiceTemplate:
-    """Tests for the service unit template."""
+class TestServiceTemplates:
+    """Tests for service unit templates."""
 
-    def test_template_has_required_fields(self):
-        """Template must contain the core systemd directives."""
-        unit = SERVICE_TEMPLATE.format(work_dir="/tmp/gk", exec_path="/usr/bin/gatekeeper")
+    def test_user_template_has_required_fields(self):
+        """User template must contain core systemd directives."""
+        unit = SERVICE_USER_TEMPLATE.format(
+            work_dir="/tmp/gk",
+            exec_path="/usr/bin/gatekeeper",
+        )
         assert "[Unit]" in unit
         assert "[Service]" in unit
         assert "[Install]" in unit
@@ -66,6 +76,27 @@ class TestServiceTemplate:
         assert "WorkingDirectory=/tmp/gk" in unit
         assert "Restart=on-failure" in unit
         assert "WantedBy=default.target" in unit
+
+    def test_system_template_has_required_fields(self):
+        """System template must contain User, Group, EnvironmentFile, and multi-user target."""
+        unit = SERVICE_SYSTEM_TEMPLATE.format(
+            user="brimdor",
+            group="brimdor",
+            work_dir="/home/brimdor/gatekeeper",
+            exec_path="/home/brimdor/.local/bin/gatekeeper",
+            env_file="/home/brimdor/gatekeeper/.env",
+        )
+        assert "[Unit]" in unit
+        assert "[Service]" in unit
+        assert "[Install]" in unit
+        assert "ExecStart=/home/brimdor/.local/bin/gatekeeper serve" in unit
+        assert "WorkingDirectory=/home/brimdor/gatekeeper" in unit
+        assert "User=brimdor" in unit
+        assert "Group=brimdor" in unit
+        assert "EnvironmentFile=/home/brimdor/gatekeeper/.env" in unit
+        assert "WantedBy=multi-user.target" in unit
+        # Should NOT have user-session target
+        assert "default.target" not in unit
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +112,6 @@ class TestInstallService:
         with (
             patch("gatekeeper.service._is_systemd_available", return_value=True),
             patch("gatekeeper.service._resolve_exec_path", return_value=None),
-            patch("gatekeeper.service.SYSTEMD_USER_DIR", tmp_path / "sysd"),
         ):
             result = install_service(skip_prompt=True)
             assert result is False
@@ -90,13 +120,12 @@ class TestInstallService:
         """Should fail gracefully when systemd is not available."""
         with (
             patch("gatekeeper.service._is_systemd_available", return_value=False),
-            patch("gatekeeper.service.SYSTEMD_USER_DIR", tmp_path / "sysd"),
         ):
             result = install_service(skip_prompt=True)
             assert result is False
 
-    def test_install_creates_unit_file(self, tmp_path):
-        """Should write a unit file and run systemctl commands."""
+    def test_install_user_creates_unit_file(self, tmp_path):
+        """Should write a user unit file and run systemctl --user commands."""
         sysd_dir = tmp_path / "sysd"
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
 
@@ -107,7 +136,7 @@ class TestInstallService:
             patch("gatekeeper.service.SYSTEMD_USER_DIR", sysd_dir),
             patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
         ):
-            result = install_service(skip_prompt=True)
+            result = install_service(skip_prompt=True, scope="user")
             assert result is True
 
             # Check unit file was written
@@ -118,26 +147,83 @@ class TestInstallService:
             content = unit_path.read_text()
             assert "ExecStart=/usr/bin/gatekeeper serve" in content
             assert "WorkingDirectory=/home/user/gatekeeper" in content
+            assert "WantedBy=default.target" in content
 
             # Verify systemctl was called correctly
             assert mock_ctl.call_count == 3  # daemon-reload, enable, start
+
+    def test_install_system_creates_unit_file(self, tmp_path):
+        """Should write a system unit file via sudo tee and run systemctl commands."""
+        sysd_dir = tmp_path / "systemd"
+        sysd_dir.mkdir(parents=True)
+        unit_path = sysd_dir / SERVICE_UNIT
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+
+        with (
+            patch("gatekeeper.service._is_systemd_available", return_value=True),
+            patch("gatekeeper.service._resolve_exec_path", return_value="/usr/bin/gatekeeper"),
+            patch("gatekeeper.service._resolve_work_dir", return_value="/home/user/gatekeeper"),
+            patch("gatekeeper.service._unit_path", return_value=unit_path),
+            patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
+            patch("gatekeeper.service.subprocess.run", return_value=mock_result) as mock_run,
+        ):
+            result = install_service(skip_prompt=True, scope="system")
+            assert result is True
+
+            # Verify subprocess.run was called for tee (writing the unit file)
+            tee_calls = [c for c in mock_run.call_args_list if "tee" in str(c)]
+            assert len(tee_calls) == 1
+
+            # Verify systemctl was called with scope="system"
+            for call in mock_ctl.call_args_list:
+                assert call.kwargs.get("scope") == "system"
+
+    def test_install_invalid_scope(self):
+        """Should reject invalid scope values."""
+        result = install_service(skip_prompt=True, scope="invalid")
+        assert result is False
+
+    def test_install_system_migrates_from_user(self, tmp_path):
+        """When installing as system, should remove existing user service."""
+        user_dir = tmp_path / "user_sysd"
+        user_dir.mkdir(parents=True)
+        user_unit = user_dir / SERVICE_UNIT
+        user_unit.write_text("[Service]\nExecStart=gatekeeper serve\n")
+
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+
+        with (
+            patch("gatekeeper.service._is_systemd_available", return_value=True),
+            patch("gatekeeper.service._resolve_exec_path", return_value="/usr/bin/gatekeeper"),
+            patch("gatekeeper.service._resolve_work_dir", return_value="/home/user/gatekeeper"),
+            patch("gatekeeper.service._unit_path", side_effect=lambda scope="system": (
+                Path("/etc/systemd/system/gatekeeper.service") if scope == "system"
+                else user_unit
+            )),
+            patch("gatekeeper.service.SYSTEMD_USER_DIR", user_dir),
+            patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
+            patch("gatekeeper.service.subprocess.run", return_value=mock_result),
+        ):
+            result = install_service(skip_prompt=True, scope="system")
+            assert result is True
+
+            # User service should have been removed
+            assert not user_unit.exists()
 
 
 class TestUninstallService:
     """Tests for uninstall_service()."""
 
-    def test_uninstall_no_unit(self, tmp_path):
-        """Should report not installed when unit file doesn't exist."""
+    def test_uninstall_no_unit_user(self, tmp_path):
+        """Should report not installed when user unit file doesn't exist."""
         with (
             patch("gatekeeper.service.SYSTEMD_USER_DIR", tmp_path / "sysd"),
-            patch("gatekeeper.service._systemctl") as mock_ctl,
         ):
-            result = uninstall_service()
+            result = uninstall_service(scope="user")
             assert result is True
-            mock_ctl.assert_not_called()
 
-    def test_uninstall_removes_unit_file(self, tmp_path):
-        """Should stop, disable, and remove the unit file."""
+    def test_uninstall_removes_user_unit_file(self, tmp_path):
+        """Should stop, disable, and remove the user unit file."""
         sysd_dir = tmp_path / "sysd"
         sysd_dir.mkdir(parents=True)
         unit_path = sysd_dir / SERVICE_UNIT
@@ -149,9 +235,22 @@ class TestUninstallService:
             patch("gatekeeper.service._unit_path", return_value=unit_path),
             patch("gatekeeper.service._systemctl", return_value=mock_result),
         ):
-            result = uninstall_service()
+            result = uninstall_service(scope="user")
             assert result is True
             assert not unit_path.exists()
+
+    def test_uninstall_system_scope(self, tmp_path):
+        """Should remove system unit file via sudo rm."""
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+
+        with (
+            patch("gatekeeper.service._run", return_value=mock_result) as mock_run,
+            patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
+        ):
+            # Mock the test -f check to indicate file exists
+            with patch("gatekeeper.service._unit_path", return_value=Path("/etc/systemd/system/gatekeeper.service")):
+                result = uninstall_service(scope="system")
+                assert result is True
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +282,20 @@ class TestEnableDisable:
             # enable and start
             assert mock_ctl.call_count == 2
 
+    def test_enable_with_system_scope(self, tmp_path):
+        """Should pass scope='system' to systemctl calls."""
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+
+        with (
+            patch("gatekeeper.service._run", return_value=MagicMock(returncode=0)),
+            patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
+        ):
+            result = disable_service(scope="system")
+            assert result is True
+            # Verify scope was passed
+            for call in mock_ctl.call_args_list:
+                assert call.kwargs.get("scope") == "system"
+
     def test_disable_stops_service(self, tmp_path):
         """Should stop and disable the service."""
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
@@ -205,7 +318,7 @@ class TestEnableDisable:
         ):
             result = restart_service()
             assert result is True
-            mock_ctl.assert_called_once_with("restart", "gatekeeper")
+            mock_ctl.assert_called_once_with("restart", "gatekeeper", scope="user")
 
     def test_restart_service_not_installed(self, tmp_path):
         """Should fail if service unit is not installed."""
@@ -214,6 +327,20 @@ class TestEnableDisable:
         with patch("gatekeeper.service._unit_path", return_value=unit_path):
             result = restart_service()
             assert result is False
+
+    def test_restart_with_system_scope(self, tmp_path):
+        """Should restart system service via sudo systemctl."""
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        unit_path = tmp_path / "gatekeeper.service"
+        unit_path.write_text("[Unit]\nDescription=test\n")
+
+        with (
+            patch("gatekeeper.service._unit_path", return_value=unit_path),
+            patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
+        ):
+            result = restart_service(scope="system")
+            assert result is True
+            mock_ctl.assert_called_once_with("restart", "gatekeeper", scope="system")
 
 
 # ---------------------------------------------------------------------------
@@ -241,15 +368,23 @@ class TestResolvePaths:
             result = _resolve_work_dir()
             assert result == str(tmp_path)
 
+
+class TestSystemdAvailability:
+    """Tests for _is_systemd_available()."""
+
     def test_systemd_available_when_running(self):
         """Should return True when systemd user session is running."""
         mock_result = MagicMock(returncode=0, stdout="running", stderr="")
         with patch("gatekeeper.service._run", return_value=mock_result):
-            assert _is_systemd_available() is True
+            assert _is_systemd_available("user") is True
 
     def test_systemd_unavailable_when_missing(self):
         """Should return False when systemctl is not found."""
-        # _is_systemd_available calls _systemctl first, then _run.
-        # Both should raise OSError when systemctl doesn't exist.
         with patch("gatekeeper.service._run", side_effect=OSError("systemctl not found")):
-            assert _is_systemd_available() is False
+            assert _is_systemd_available("user") is False
+
+    def test_system_scope_available_on_linux(self):
+        """Should return True when systemd is running at system level."""
+        mock_result = MagicMock(returncode=0, stdout="running", stderr="")
+        with patch("gatekeeper.service._run", return_value=mock_result):
+            assert _is_systemd_available("system") is True

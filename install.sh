@@ -447,8 +447,11 @@ run_service() {
     printf "\n"
     printf "${BOLD}  Step 6: Systemd Service${NC}\n"
     printf "\n"
-    printf "  Gatekeeper can run as a systemd user service so it starts\n"
-    printf "  automatically on boot and restarts on failure.\n"
+    printf "  Gatekeeper can run as a systemd service so it starts\n"
+    printf "  automatically and restarts on failure.\n"
+    printf "\n"
+    printf "  ${CYAN}User service${NC}   — tied to your login session (requires linger for always-on)\n"
+    printf "  ${CYAN}System service${NC} — starts at boot, independent of sessions (${BOLD}recommended for servers${NC})\n"
     printf "\n"
 
     if ! command -v systemctl &>/dev/null; then
@@ -457,17 +460,41 @@ run_service() {
         return
     fi
 
-    # Check if systemd user session is available
+    # Default to system on Linux servers (where sudo is available)
+    local default_scope="system"
+    if [[ "$(uname)" == "Darwin" ]]; then
+        default_scope="user"
+    fi
+    # Check if systemd user sessions are available
     if ! systemctl --user is-system-running &>/dev/null && ! systemctl --user status &>/dev/null; then
-        warn "systemd user sessions are not available — skipping service setup."
-        printf "  You can start Gatekeeper manually with: ${CYAN}gatekeeper serve${NC}\n"
-        return
+        if ! command -v sudo &>/dev/null; then
+            warn "Neither systemd user sessions nor sudo are available — skipping service setup."
+            printf "  You can start Gatekeeper manually with: ${CYAN}gatekeeper serve${NC}\n"
+            return
+        fi
+        # Only system scope is viable
+        default_scope="system"
+        info "systemd user sessions unavailable — will install as system service."
     fi
 
-    if tty_ask_yn "Install Gatekeeper as a systemd user service?" "y"; then
-        gatekeeper service install
+    local scope_question="Install Gatekeeper as a systemd service?"
+    if [[ "$default_scope" == "system" ]]; then
+        scope_question="Install Gatekeeper as a systemd service? (system scope recommended)"
+    fi
+
+    if tty_ask_yn "$scope_question" "y"; then
+        # Ask which scope
+        local scope="$default_scope"
+        if tty_ask_yn "Use system scope? (starts at boot, no user session needed) [Y/n]"; then
+            scope="system"
+        else
+            scope="user"
+            warn "User scope requires 'loginctl enable-linger' to survive disconnects."
+            printf "  Run ${CYAN}loginctl enable-linger \$USER${NC} after installation.\n"
+        fi
+        gatekeeper service install "--scope=$scope"
     else
-        printf "  Run ${CYAN}gatekeeper service install${NC} to set it up later.\n"
+        printf "  Run ${CYAN}gatekeeper service install --scope system${NC} to set it up later.\n"
     fi
 }
 
@@ -511,6 +538,7 @@ print_success() {
     printf "    ${CYAN}gatekeeper service status${NC}   — Check service status\n"
     printf "    ${CYAN}gatekeeper service restart${NC}  — Restart the service\n"
     printf "    ${CYAN}gatekeeper service logs -f${NC}  — Tail service logs\n"
+    printf "    ${CYAN}gatekeeper service install --scope system${NC}  — Install as boot service\n
     printf "    ${CYAN}gatekeeper hosts list${NC}        — Show MCP allowed hosts\n"
     printf "    ${CYAN}gatekeeper hosts add <host>${NC}  — Add MCP allowed host\n"
     printf "\n"
