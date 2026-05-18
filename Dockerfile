@@ -1,18 +1,27 @@
 # Gatekeeper - Policy Gateway for Google Workspace APIs
 # Multi-arch build for amd64 + arm64 (RPi compatible)
 # Uses uv for fast Python dependency installation
+# Pass BUILD_VERSION from CI (e.g. docker/metadata-action) for versioned releases
+
+ARG BUILD_VERSION=0.0.0
 
 # ==================== Build Stage ====================
 FROM python:3.12-slim AS builder
+
+ARG BUILD_VERSION
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /build
 
-# Copy project files for dependency resolution
+# Copy project files
 COPY pyproject.toml README.md ./
 COPY gatekeeper/ gatekeeper/
+
+# Inject version via pyproject.toml override (hatch-vcs can't see .git in Docker)
+COPY scripts/ scripts/
+RUN BUILD_VERSION="${BUILD_VERSION}" python3 scripts/set_version.py pyproject.toml && rm -rf scripts/
 
 # Install the package and its dependencies
 RUN uv pip install --system --no-cache .
