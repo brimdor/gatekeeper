@@ -1,6 +1,6 @@
 [project]
 name = "gatekeeper"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Policy gateway for Google Workspace APIs with MCP server integration"
 readme = "README.md"
 license = "MIT"
@@ -53,8 +53,11 @@ Issues = "https://github.com/brimdor/gatekeeper/issues"
 gatekeeper = "gatekeeper.main:cli"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "setuptools-scm"]
 build-backend = "hatchling.build"
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
 
 [tool.ruff]
 line-length = 100

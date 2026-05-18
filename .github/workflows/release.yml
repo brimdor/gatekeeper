@@ -1,0 +1,49 @@
+name: Release
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git tag --sort=-version:refname | head -n 2 | tail -n 1)
+          if [ -z "$PREV_TAG" ]; then
+            echo "body=**Full release**" >> "$GITHUB_OUTPUT"
+          else
+            LOG=$(git log --pretty=format:"* %s" --no-merges "$PREV_TAG..${{ github.ref_name }}" 2>/dev/null || true)
+            echo "body<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$LOG" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Gatekeeper ${{ github.ref_name }}
+          body: |
+            ${{ steps.changelog.outputs.body }}
+
+            ### Installation
+
+            ```bash
+            docker pull ghcr.io/brimdor/gatekeeper:${{ github.ref_name }}
+            # or
+            pip install gatekeeper==${{ github.ref_name }}
+            # or
+            uv tool install gatekeeper
+            ```
+
+            See the [README](https://github.com/brimdor/gatekeeper#readme) for full setup.
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}

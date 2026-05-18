@@ -6,6 +6,42 @@
 
 **Policy gateway for Google Workspace APIs** — fine-grained control over what AI agents can do with your Google Drive, Gmail, and Calendar. Exposes enabled routes as MCP tools so agents discover and call only what you allow.
 
+## Quick Start
+
+Choose your path:
+
+```bash
+# Docker (recommended — run in 2 commands)
+docker run -d --name gatekeeper \
+  -p 8080:8080 \
+  -v gatekeeper-data:/data \
+  -e GATEKEEPER_GOOGLE_CLIENT_ID=your_id \
+  -e GATEKEEPER_GOOGLE_CLIENT_SECRET=your_secret \
+  ghcr.io/brimdor/gatekeeper:latest
+
+# Podman (same API, no daemon needed)
+podman run -d --name gatekeeper \
+  -p 8080:8080 \
+  -v gatekeeper-data:/data \
+  -e GATEKEEPER_GOOGLE_CLIENT_ID=your_id \
+  -e GATEKEEPER_GOOGLE_CLIENT_SECRET=your_secret \
+  ghcr.io/brimdor/gatekeeper:latest
+
+# pip (local install)
+pip install gatekeeper && gatekeeper serve
+
+# uv (fast Python install)
+uv tool install gatekeeper && gatekeeper serve
+
+# Clone + run (full control)
+git clone https://github.com/brimdor/gatekeeper.git
+cd gatekeeper
+cp .env.example .env   # Edit with your Google OAuth credentials
+gatekeeper serve
+```
+
+> **First time?** After starting, authenticate with Google: `gatekeeper auth`, then visit `http://localhost:8080/admin` to enable modules and create an API key. See the **[Setup Guide](docs/SETUP.md)** for the full walkthrough.
+
 ## Why Gatekeeper?
 
 Google's OAuth scopes are all-or-nothing. `gmail.modify` gives full read/write/delete on everything. There's no way to say "read-only this label" or "create events but never delete them."
