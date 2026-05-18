@@ -4,6 +4,64 @@ You are an AI agent that has connected to a repository containing **Gatekeeper**
 
 ---
 
+## Setup Decision Tree
+
+When a human asks you to set up Gatekeeper, **do not assume the deployment method**. Ask what environment they want to run it in, or detect based on available tooling. Present options in this priority order:
+
+| Option | When to recommend | User needs |
+|---|---|---|
+| **Docker** (recommended) | User has Docker installed or is comfortable with containers | Docker or podman, and Google OAuth credentials |
+| **pip / uv** | User wants a quick local install without containers | Python 3.11+, pip or uv, and Google OAuth credentials |
+| **Clone + run** | User wants full control, development, or to customize code | git, Python 3.11+, and Google OAuth credentials |
+| **systemd service** | User already has a server/running 24/7 and wants boot-time startup | systemd, the above (Docker or pip), and root or user service capability |
+
+### Environment detection questions
+
+Ask the user (or detect from their system):
+
+1. **"Do you have Docker or Podman installed?"** → If yes, recommend Docker option
+2. **"Do you prefer a quick Python install (pip/uv) instead of containers?"** → If yes, recommend pip/uv
+3. **"Do you need this running as a background service (systemd)?"** → If yes, recommend systemd after initial install
+4. **"Do you want to modify the Gatekeeper code?"** → If yes, recommend clone + run
+
+### Docker one-liner (fastest)
+
+```bash
+docker run -d --name gatekeeper \
+  -p 8080:8080 \
+  -v gatekeeper-data:/data \
+  -e GATEKEEPER_GOOGLE_CLIENT_ID=your_id \
+  -e GATEKEEPER_GOOGLE_CLIENT_SECRET=your_secret \
+  -e GATEKEEPER_DRIVE_ENABLED=true \
+  -e GATEKEEPER_GMAIL_ENABLED=true \
+  ghcr.io/brimdor/gatekeeper:latest
+```
+
+Then:
+```bash
+docker exec -it gatekeeper gatekeeper auth
+# Get the admin password
+docker exec gatekeeper cat /data/gatekeeper_secrets.json | grep admin_password
+docker exec gatekeeper gatekeeper key create --name my-agent
+```
+
+### pip one-liner
+
+```bash
+pip install aigatekeeper  # or: uv tool install aigatekeeper
+cp .env.example .env       # edit with Google OAuth credentials
+gatekeeper init
+gatekeeper auth
+gatekeeper key create --name my-agent
+gatekeeper serve
+```
+
+### Full setup guide
+
+For the complete step-by-step walkthrough (Google Cloud Console setup, OAuth scopes, admin UI), see **[docs/SETUP.md](docs/SETUP.md)**.
+
+---
+
 ## What is Gatekeeper?
 
 Gatekeeper sits between you and Google's APIs. You call MCP tools, Gatekeeper enforces policies:

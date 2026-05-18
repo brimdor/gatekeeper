@@ -1,6 +1,35 @@
 # Gatekeeper MCP Setup — For Humans
 
-This guide walks a **human administrator** through connecting an AI agent to Gatekeeper via MCP. If you're an AI agent reading this repo, see [MCP_SETUP_AGENT.md](MCP_SETUP_AGENT.md) instead.
+This guide walks a **human administrator** through deploying and connecting an AI agent to Gatekeeper via MCP. If you're an AI agent reading this repo, see [MCP_SETUP_AGENT.md](MCP_SETUP_AGENT.md) instead.
+
+---
+
+## Choose your deployment method
+
+Gatekeeper can be deployed in several ways. Pick based on your environment and preferences:
+
+| Method | Best for | One-liner |
+|---|---|---|
+| **Docker** (recommended) | Most users — isolated, reproducible, easy to update | `docker run -d --name gatekeeper -p 8080:8080 -v gatekeeper-data:/data -e GATEKEEPER_GOOGLE_CLIENT_ID=your_id -e GATEKEEPER_GOOGLE_CLIENT_SECRET=your_secret ghcr.io/brimdor/gatekeeper:latest` |
+| **Podman** | Users who prefer podman/docker daemonless | Same as Docker, replace `docker` with `podman` |
+| **pip** | Quick local install, familiar with Python | `pip install aigatekeeper && gatekeeper serve` |
+| **uv** | Fast Python install, modern tooling | `uv tool install aigatekeeper && gatekeeper serve` |
+| **Clone + run** | Developers who want to modify or contribute | `git clone https://github.com/brimdor/gatekeeper && cd gatekeeper && gatekeeper serve` |
+
+### Systemd (after any install above)
+
+For 24/7 operation, install as a systemd service:
+
+```bash
+# After installing via Docker or pip:
+gatekeeper service install --scope user
+gatekeeper service enable
+gatekeeper service start
+```
+
+Then connect your agent via MCP.
+
+For the full walkthrough (Google Cloud Console, OAuth scopes, admin UI), see **[docs/SETUP.md](docs/SETUP.md)**.
 
 ---
 

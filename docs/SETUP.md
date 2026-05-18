@@ -4,6 +4,26 @@ Complete walkthrough for installing, configuring, and running Gatekeeper on a fr
 
 ---
 
+## Deployment Options
+
+Choose your install method based on your environment:
+
+| Method | One-liner | Best when |
+|---|---|---|
+| **Docker** (recommended) | `docker run -d --name gatekeeper -p 8080:8080 -v gatekeeper-data:/data -e GATEKEEPER_GOOGLE_CLIENT_ID=your_id -e GATEKEEPER_GOOGLE_CLIENT_SECRET=your_secret ghcr.io/brimdor/gatekeeper:latest` | You have Docker installed |
+| **Podman** | Same as Docker, replace `docker` with `podman` | You prefer podman/docker daemonless |
+| **pip** | `pip install aigatekeeper && gatekeeper serve` | Quick local Python install |
+| **uv** | `uv tool install aigatekeeper && gatekeeper serve` | Modern Python tooling |
+| **Clone + run** | `git clone https://github.com/brimdor/gatekeeper && cd gatekeeper && gatekeeper serve` | You want to modify or contribute |
+| **systemd** | `gatekeeper service install --scope user && gatekeeper service start` | 24/7 background service |
+| **install.sh** | `curl -fsSL https://raw.githubusercontent.com/brimdor/gatekeeper/main/install.sh | bash` | Interactive wizard |
+
+After any install above, continue with **Step 2** below for Google OAuth setup.
+
+For agent connection instructions, see **[MCP_SETUP_HUMAN.md](MCP_SETUP_HUMAN.md)**.
+
+---
+
 ## Prerequisites
 
 - **Python 3.11+** (for bare metal install)
