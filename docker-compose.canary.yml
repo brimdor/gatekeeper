@@ -1,0 +1,39 @@
+# Gatekeeper Canary Instance
+# Runs alongside production on a separate port with isolated data.
+# Usage: podman-compose -f docker-compose.canary.yml up -d
+#
+# Copy .env.example to .env.canary and fill in your values before starting.
+
+services:
+  gatekeeper-canary:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gatekeeper-canary
+    ports:
+      - "8082:8080"
+    volumes:
+      - gatekeeper-canary-data:/data
+    env_file:
+      - .env.canary
+    environment:
+      - GATEKEEPER_HOST=0.0.0.0
+      - GATEKEEPER_PORT=8080
+      - GATEKEEPER_DATABASE_URL=sqlite+aiosqlite:////data/gatekeeper.db
+      - GATEKEEPER_GOOGLE_TOKEN_FILE=/data/google_token.json
+      - GATEKEEPER_DRIVE_ENABLED=${GATEKEEPER_DRIVE_ENABLED:-true}
+      - GATEKEEPER_GMAIL_ENABLED=${GATEKEEPER_GMAIL_ENABLED:-true}
+      - GATEKEEPER_CALENDAR_ENABLED=${GATEKEEPER_CALENDAR_ENABLED:-true}
+      - GATEKEEPER_MCP_ENABLED=${GATEKEEPER_MCP_ENABLED:-true}
+      - GATEKEEPER_MCP_ALLOWED_HOSTS=${GATEKEEPER_MCP_ALLOWED_HOSTS:-["*"]}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  gatekeeper-canary-data:
+    driver: local
