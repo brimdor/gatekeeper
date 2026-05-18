@@ -59,6 +59,9 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "vcs"
 
+[tool.hatch.build.targets.wheel]
+packages = ["gatekeeper"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
