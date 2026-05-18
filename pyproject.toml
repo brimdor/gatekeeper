@@ -1,5 +1,5 @@
 [project]
-name = "gatekeeper"
+name = "aigatekeeper"
 dynamic = ["version"]
 description = "Policy gateway for Google Workspace APIs with MCP server integration"
 readme = "README.md"

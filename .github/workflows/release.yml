@@ -39,9 +39,9 @@ jobs:
             ```bash
             docker pull ghcr.io/brimdor/gatekeeper:${{ github.ref_name }}
             # or
-            pip install gatekeeper==${{ github.ref_name }}
+            pip install aigatekeeper==${{ github.ref_name }}
             # or
-            uv tool install gatekeeper
+            uv tool install aigatekeeper
             ```
 
             See the [README](https://github.com/brimdor/gatekeeper#readme) for full setup.

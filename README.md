@@ -28,10 +28,10 @@ podman run -d --name gatekeeper \
   ghcr.io/brimdor/gatekeeper:latest
 
 # pip (local install)
-pip install gatekeeper && gatekeeper serve
+pip install aigatekeeper && gatekeeper serve
 
 # uv (fast Python install)
-uv tool install gatekeeper && gatekeeper serve
+uv tool install aigatekeeper && gatekeeper serve
 
 # Clone + run (full control)
 git clone https://github.com/brimdor/gatekeeper.git
