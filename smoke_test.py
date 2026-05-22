@@ -311,7 +311,7 @@ async def test_readonly_route(proxy, api_key, route, email: str) -> dict:
     params = build_test_params(route, email)
     try:
         resp = await proxy.call_google(
-            module_name=route.module,
+            module_name=route.route_id.split(".", 1)[0],
             route_id=route.route_id,
             params=params,
             api_key_record=api_key,
@@ -339,13 +339,13 @@ async def test_write_route(proxy, api_key, route, email: str, tracker: WriteTrac
 
     # Inject real IDs from tracker if path params reference known resources
     for pp in extract_path_params(route.google_path):
-        real_id = tracker.get_resource_id(pp, route.module)
+        real_id = tracker.get_resource_id(pp, route.route_id.split(".", 1)[0])
         if real_id:
             params[snake_to_camel(pp)] = real_id
 
     try:
         resp = await proxy.call_google(
-            module_name=route.module,
+            module_name=route.route_id.split(".", 1)[0],
             route_id=route.route_id,
             params=params,
             api_key_record=api_key,
@@ -385,35 +385,35 @@ class WriteTracker:
         rid = response_body.get("id", "")
         if not rid:
             return
-        key = f"{route.module}:{route.route_id}"
+        key = f"{route.route_id.split('.', 1)[0]}:{route.route_id}"
         self.resources[key] = {
             "id": rid,
             "type": route.route_id,
-            "module": route.module,
+            "module": route.route_id.split(".", 1)[0],
             "params": params,
             "response": response_body,
         }
         # Map common path IDs
         if "fileId" in str(route.google_path):
-            self.path_ids.setdefault(route.module, {})["fileId"] = rid
+            self.path_ids.setdefault(route.route_id.split(".", 1)[0], {})["fileId"] = rid
         if "calendarId" in str(route.google_path):
-            self.path_ids.setdefault(route.module, {})["calendarId"] = rid
+            self.path_ids.setdefault(route.route_id.split(".", 1)[0], {})["calendarId"] = rid
         if "eventId" in str(route.google_path):
-            self.path_ids.setdefault(route.module, {})["eventId"] = rid
+            self.path_ids.setdefault(route.route_id.split(".", 1)[0], {})["eventId"] = rid
         if "commentId" in str(route.google_path):
-            self.path_ids.setdefault(route.module, {})["commentId"] = rid
+            self.path_ids.setdefault(route.route_id.split(".", 1)[0], {})["commentId"] = rid
         if "replyId" in str(route.google_path):
-            self.path_ids.setdefault(route.module, {})["replyId"] = rid
+            self.path_ids.setdefault(route.route_id.split(".", 1)[0], {})["replyId"] = rid
         if "draftId" in str(route.google_path):
-            self.path_ids.setdefault(route.module, {})["draftId"] = rid
+            self.path_ids.setdefault(route.route_id.split(".", 1)[0], {})["draftId"] = rid
         if "labelId" in str(route.google_path):
-            self.path_ids.setdefault(route.module, {})["labelId"] = rid
+            self.path_ids.setdefault(route.route_id.split(".", 1)[0], {})["labelId"] = rid
         if "ruleId" in str(route.google_path):
-            self.path_ids.setdefault(route.module, {})["ruleId"] = rid
+            self.path_ids.setdefault(route.route_id.split(".", 1)[0], {})["ruleId"] = rid
         if "driveId" in str(route.google_path):
-            self.path_ids.setdefault(route.module, {})["driveId"] = rid
+            self.path_ids.setdefault(route.route_id.split(".", 1)[0], {})["driveId"] = rid
         if "teamDriveId" in str(route.google_path):
-            self.path_ids.setdefault(route.module, {})["teamDriveId"] = rid
+            self.path_ids.setdefault(route.route_id.split(".", 1)[0], {})["teamDriveId"] = rid
 
     def get_resource_id(self, param_name: str, module: str) -> str | None:
         return self.path_ids.get(module, {}).get(param_name)
@@ -596,7 +596,7 @@ async def main():
         # Run creates first (establish resources)
         for route in create_routes:
             result = await test_write_route(proxy, api_key, route, email, tracker)
-            all_results[route.module].append({
+            all_results[route.route_id.split(".", 1)[0]].append({
                 "route": route.route_id, "method": route.method, "result": result,
             })
             if result["status"] == "pass":
@@ -607,7 +607,7 @@ async def main():
         # Run mutations on established resources
         for route in other_writes:
             result = await test_write_route(proxy, api_key, route, email, tracker)
-            all_results[route.module].append({
+            all_results[route.route_id.split(".", 1)[0]].append({
                 "route": route.route_id, "method": route.method, "result": result,
             })
             if result["status"] == "fail":
@@ -616,7 +616,7 @@ async def main():
         # Run cleanup routes (deletes, etc.)
         for route in cleanup_routes:
             result = await test_write_route(proxy, api_key, route, email, tracker)
-            all_results[route.module].append({
+            all_results[route.route_id.split(".", 1)[0]].append({
                 "route": route.route_id, "method": route.method, "result": result,
             })
             if result["status"] == "fail":
