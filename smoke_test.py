@@ -145,8 +145,7 @@ _DepBootstrap.ensure()
 # ─────────────────────────────────────────────────────────────────────────────
 
 import httpx
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from gatekeeper.google_client import credential_manager
 
@@ -261,7 +260,7 @@ def build_test_params(route, email: str | None) -> dict:
 
 def _get_db_session_factory():
     engine = create_async_engine(f"sqlite+aiosqlite:///{DB_PATH}")
-    return sessionmaker(engine, class_=AsyncSession)
+    return async_sessionmaker(engine, class_=AsyncSession)
 
 
 async def init_test_db():
@@ -568,7 +567,7 @@ async def main():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    async_session_factory = sessionmaker(engine, class_=AsyncSession)
+    async_session_factory = async_sessionmaker(engine, class_=AsyncSession)
     async with async_session_factory() as session:
         api_key = await create_test_api_key(session)
         await create_route_policies(session)
