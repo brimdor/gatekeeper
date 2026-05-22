@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import logging
+import mimetypes
+import os
+import uuid
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -27,6 +33,14 @@ MODULE_API_MAP = {
     "gmail": "/gmail/v1",
     "calendar": "/calendar/v3",
 }
+
+# File download storage for binary responses larger than max_inline_size_mb
+DOWNLOAD_DIR = Path(
+    os.environ.get(
+        "GATEKEEPER_DOWNLOAD_DIR",
+        os.path.expanduser("~/.gatekeeper/downloads"),
+    )
+)
 
 
 class GoogleProxy:
@@ -172,6 +186,11 @@ class GoogleProxy:
                 google_path = google_path.replace(placeholder, str(value))
                 del normalized_params[key]
 
+        # Binary download routes: inject alt=media so Google serves raw bytes.
+        # export routes have their own alt param via mime_type – skip those.
+        if route.binary_response and "export" not in route.route_id:
+            normalized_params["alt"] = "media"
+
         # Construct the final URL
         if route.google_path.startswith("/"):
             # google_path already includes full API path (e.g., /calendar/v3/...)
@@ -244,7 +263,26 @@ class GoogleProxy:
                         headers=headers,
                     )
 
-            # Parse response
+            # Handle binary responses (exports, downloads) vs JSON responses
+            if route.binary_response:
+                result = self._handle_binary_response(
+                    response=response,
+                    file_id=params.get("file_id", "unknown"),
+                    route_id=route_id,
+                    decision=decision,
+                )
+                await log_request(
+                    api_key_prefix=api_key_record.key_prefix,
+                    module=module_name,
+                    route=route_id,
+                    method=request_method,
+                    path=request_path,
+                    status_code=response.status_code,
+                    response_summary=result.get("summary", "binary") if isinstance(result, dict) else "binary",
+                )
+                return JSONResponse(status_code=response.status_code, content=result)
+
+            # Parse JSON response
             try:
                 response_data = response.json()
             except Exception:
@@ -305,6 +343,72 @@ class GoogleProxy:
                 status_code=500,
                 content={"error": True, "status": 500, "message": f"Internal error: {e}"},
             )
+
+    def _handle_binary_response(
+        self,
+        response: httpx.Response,
+        file_id: str,
+        route_id: str,
+        decision: Any,
+    ) -> dict[str, Any]:
+        """Handle binary responses: inline base64 or save to disk.
+
+        Uses the ``max_inline_size_mb`` policy key (defaults to 1) to decide
+        whether to base64-encode the file in the JSON response or save it
+        to the download directory and return a file path.
+
+        Also handles error responses from Google (which are JSON even for
+        binary routes).
+        """
+        # Google may return JSON errors for binary routes
+        content_type = response.headers.get("content-type", "").lower()
+        if response.status_code != 200 or "json" in content_type:
+            try:
+                return response.json()
+            except Exception:
+                return {
+                    "error": True,
+                    "status": response.status_code,
+                    "message": response.text,
+                }
+
+        raw_bytes = response.content
+        size_mb = len(raw_bytes) / (1024 * 1024)
+        threshold_mb = float(decision.policy_config.get("max_inline_size_mb", 1))
+
+        # Derive a filename
+        content_disposition = response.headers.get("content-disposition", "")
+        filename = None
+        if "filename=" in content_disposition:
+            filename = content_disposition.split("filename=")[-1].strip('"')
+        if not filename:
+            # Try to guess from Content-Type
+            ext = mimetypes.guess_extension(content_type.split(";")[0].strip()) or ".bin"
+            filename = f"{file_id}{ext}"
+
+        # Under threshold → inline base64
+        if size_mb <= threshold_mb:
+            return {
+                "content_type": content_type.split(";")[0].strip(),
+                "size_bytes": len(raw_bytes),
+                "base64": base64.b64encode(raw_bytes).decode("ascii"),
+                "filename": filename,
+            }
+
+        # Over threshold → save to disk
+        DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        short_id = hashlib.sha256(file_id.encode()).hexdigest()[:8]
+        unique_name = f"{short_id}_{uuid.uuid4().hex[:8]}_{filename}"
+        file_path = DOWNLOAD_DIR / unique_name
+        file_path.write_bytes(raw_bytes)
+
+        return {
+            "content_type": content_type.split(";")[0].strip(),
+            "size_bytes": len(raw_bytes),
+            "file_path": str(file_path),
+            "filename": filename,
+            "saved_to_disk": True,
+        }
 
     @staticmethod
     def _restructure_filter_body(params: dict[str, Any]) -> dict[str, Any]:

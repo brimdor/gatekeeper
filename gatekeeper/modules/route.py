@@ -24,6 +24,11 @@ class RouteDef(BaseModel):
     # Required for Google APIs where certain params (e.g. addParents/removeParents
     # on drive.files.update) are only accepted as query parameters.
     query_params: list[str] = []
+    # Whether this route returns a binary response that requires special handling
+    # (e.g. file downloads from Google Drive). When True, the proxy streams the
+    # response instead of parsing it as JSON and optionally base64-encodes it
+    # if it is below the max_inline_size_mb policy threshold.
+    binary_response: bool = False
     # Default policy config
     default_policy: dict[str, Any] = {}
     # Whether this route is enabled by default

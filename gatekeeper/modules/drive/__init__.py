@@ -105,7 +105,32 @@ class DriveModule(GoogleModule):
                     },
                     "required": ["file_id"],
                 },
-                default_policy={},
+                binary_response=True,
+                default_policy={"max_inline_size_mb": 1},
+            ),
+            # ── File downloads ──
+            RouteDef(
+                route_id="drive.files.download",
+                method="GET",
+                google_path="/drive/v3/files/{fileId}",
+                description="Download a file's binary content from Google Drive",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "file_id": {
+                            "type": "string",
+                            "description": "The ID of the file to download",
+                        },
+                        "acknowledge_abuse": {
+                            "type": "boolean",
+                            "description": "Acknowledge potential abuse if flagged by Google",
+                            "default": False,
+                        },
+                    },
+                    "required": ["file_id"],
+                },
+                binary_response=True,
+                default_policy={"max_inline_size_mb": 1},
             ),
             RouteDef(
                 route_id="drive.files.list_shared",
