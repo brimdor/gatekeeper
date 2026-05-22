@@ -166,6 +166,14 @@ from gatekeeper.db import Base, init_db
 from gatekeeper.models import ApiKey, RoutePolicy
 from gatekeeper.modules import AVAILABLE_MODULES, load_module
 
+# proxy.py imported `from gatekeeper.logging import log_request` at import
+# time, so module-level patching doesn't reach it. Rebind directly in proxy.py's
+# own namespace so the calls inside proxy.py hit our no-op.
+import gatekeeper.api.proxy as _gk_proxy
+
+_gk_proxy.log_request = _noop_log_request
+# ─────────────────────────────────────────────────────────────────────────────
+
 # --------------------------------------------------------------------------- #
 # Config                                                                      #
 # --------------------------------------------------------------------------- #
