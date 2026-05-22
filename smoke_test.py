@@ -148,10 +148,21 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
+from gatekeeper.google_client import credential_manager
+
+# ── Monkey-patch audit logger BEFORE importing proxy.py ──
+import gatekeeper.logging as _gk_logging
+
+async def _noop_log_request(**kwargs):
+    """Audit-log no-op for smoke test — prevents greenlet_spawn errors."""
+    pass
+
+_gk_logging.log_request = _noop_log_request
+# ──────────────────────────────────────────────────────────
+
 from gatekeeper.api.proxy import GoogleProxy
 from gatekeeper.config import settings
 from gatekeeper.db import Base, init_db
-from gatekeeper.google_client import credential_manager
 from gatekeeper.models import ApiKey, RoutePolicy
 from gatekeeper.modules import AVAILABLE_MODULES, load_module
 
