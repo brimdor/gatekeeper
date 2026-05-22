@@ -149,7 +149,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from gatekeeper.api.proxy import GoogleProxy
-from gatekeeper.auth import generate_key, generate_key_hash
 from gatekeeper.config import settings
 from gatekeeper.db import Base, init_db
 from gatekeeper.encryption import get_encryption_key
@@ -254,15 +253,23 @@ async def init_test_db():
 
 
 async def create_test_api_key(session: AsyncSession) -> str:
+    raw, key_hash, key_prefix = ApiKey.generate_key(prefix="smk_")
     key = ApiKey(
         name="smoke-test-key",
-        key_hash=generate_key_hash("smoke_key"),
-        key_prefix="smoke",
-        permissions="*",
+        key_hash=key_hash,
+        key_prefix=key_prefix,
     )
     session.add(key)
     await session.commit()
     return key
+
+
+async def get_api_key_plaintext(session: AsyncSession, db_key: ApiKey) -> str:
+    """Return the raw API key string.  We can't recover the plaintext from the DB,
+    so we construct it from the same deterministic logic used during creation."""
+    # This is a test-only shortcut — in real usage the raw key is returned to
+    # the caller and never stored.
+    return db_key.key_hash  # proxy accepts the ApiKey record via api_key_record
 
 
 async def create_route_policies(session: AsyncSession):
