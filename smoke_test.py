@@ -151,7 +151,6 @@ from sqlalchemy.orm import sessionmaker
 from gatekeeper.api.proxy import GoogleProxy
 from gatekeeper.config import settings
 from gatekeeper.db import Base, init_db
-from gatekeeper.encryption import get_encryption_key
 from gatekeeper.google_client import credential_manager
 from gatekeeper.models import ApiKey, RoutePolicy
 from gatekeeper.modules import AVAILABLE_MODULES, load_module
