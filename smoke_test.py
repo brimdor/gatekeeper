@@ -36,6 +36,94 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# ─── Dependency Bootstrap ────────────────────────────────────────────────────
+# Before importing any third-party packages, verify they are installed.
+# If missing, auto-install from requirements.txt (or pyproject.toml fallback).
+
+import shutil
+import subprocess
+import warnings as _warnings
+
+
+class _DepBootstrap:
+    
+    @staticmethod
+    def _parse_spec(spec: str) -> str:
+        """Strip extras and version constraints, leaving only the distribution name."""
+        # fastapi[standard]>=0.110  -> fastapi
+        # httpx>=0.27                -> httpx
+        name = spec.split("[")[0].split("=")[0].split(">")[0].split("<")[0].strip()
+        return name
+
+    @staticmethod
+    def _check(spec: str) -> bool:
+        """Return True if the package is importable (best-effort)."""
+        name = _DepBootstrap._parse_spec(spec).replace("-", "_")
+        try:
+            __import__(name)
+            return True
+        except ImportError:
+            return False
+
+    @staticmethod
+    def _load_reqs() -> list[str]:
+        """Read requirements.txt or pyproject.toml dependencies."""
+        req_file = PROJECT_ROOT / "requirements.txt"
+        if req_file.exists():
+            lines = [ln.strip() for ln in req_file.read_text().splitlines()]
+            return [ln for ln in lines if ln and not ln.startswith("#")]
+
+        pyproject = PROJECT_ROOT / "pyproject.toml"
+        if pyproject.exists():
+            try:
+                import tomllib
+                with pyproject.open("rb") as fh:
+                    data = tomllib.load(fh)
+                return data.get("project", {}).get("dependencies", [])
+            except ModuleNotFoundError:
+                _warnings.warn(
+                    "tomllib not found (Python < 3.11). Cannot parse pyproject.toml."
+                    " Please create a requirements.txt.",
+                    stacklevel=2,
+                )
+        return []
+
+    @staticmethod
+    def ensure() -> None:
+        deps = _DepBootstrap._load_reqs()
+        if not deps:
+            print("⚠️  No requirements.txt or pyproject.toml dependencies found. Skipping auto-install.")
+            return
+
+        missing = [d for d in deps if not _DepBootstrap._check(d)]
+        if not missing:
+            return
+
+        print(f"🔧 Missing packages: {missing}")
+
+        # Prefer uv for speed, fall back to pip --user.
+        if shutil.which("uv"):
+            cmd = ["uv", "pip", "install", "--system"] + missing
+        else:
+            cmd = [sys.executable, "-m", "pip", "install", "--user", "-q"] + missing
+            if os.environ.get("PIP_BREAK_SYSTEM_PACKAGES") == "1":
+                cmd.insert(-len(missing), "--break-system-packages")
+
+        print(f"🔧 Running: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"❌ Install failed:\n{result.stderr}")
+            print("Work-arounds:")
+            print("  python3 -m venv venv && source venv/bin/activate")
+            print("  pip install -r requirements.txt")
+            print("  uv pip install -r requirements.txt")
+            sys.exit(1)
+        print("✅ Dependencies installed.\n")
+
+
+_DepBootstrap.ensure()
+# ─────────────────────────────────────────────────────────────────────────────
+
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
