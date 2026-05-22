@@ -101,25 +101,34 @@ class _DepBootstrap:
 
         print(f"🔧 Missing packages: {missing}")
 
-        # Prefer uv for speed, fall back to pip --user.
         in_venv = sys.prefix != sys.base_prefix
+        venv_path = PROJECT_ROOT / ".venv"
+        venv_python = venv_path / "bin" / "python"
+
+        if not in_venv and not venv_path.exists():
+            # Externally-managed interpreter — create a local venv automatically.
+            print(f"🔧 Creating local venv at {venv_path} ...")
+            subprocess.run(
+                [sys.executable, "-m", "venv", str(venv_path)],
+                capture_output=True, text=True, check=True,
+            )
+            print("🔧 Venv created. Restarting inside it ...\n")
+            os.execl(str(venv_python), str(venv_python), *sys.argv)
+
+        # Choose python to target (venv if present, else current).
+        target_python = venv_python if venv_path.exists() else Path(sys.executable)
+
         if shutil.which("uv"):
-            # Inside a venv we can omit --system; outside we need it.
-            if in_venv:
-                cmd = ["uv", "pip", "install"] + missing
-            else:
-                cmd = ["uv", "pip", "install", "--system"] + missing
+            cmd = ["uv", "pip", "install", "--python", str(target_python)] + missing
         else:
-            cmd = [sys.executable, "-m", "pip", "install", "--user", "-q"] + missing
-            if os.environ.get("PIP_BREAK_SYSTEM_PACKAGES") == "1":
-                cmd.insert(-len(missing), "--break-system-packages")
+            cmd = [str(target_python), "-m", "pip", "install", "-q"] + missing
 
         print(f"🔧 Running: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             print(f"❌ Install failed:\n{result.stderr}")
             print("Work-arounds:")
-            print("  python3 -m venv venv && source venv/bin/activate")
+            print("  python3 -m venv .venv && source .venv/bin/activate")
             print("  pip install -r requirements.txt")
             print("  uv pip install -r requirements.txt")
             sys.exit(1)
