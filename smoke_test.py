@@ -207,7 +207,7 @@ def build_test_params(route, email: str | None) -> dict:
         elif key == "body":
             params[key] = "This is a smoke test email"
         elif key == "q":
-            if route.module == "drive":
+            if route.route_id.split(".", 1)[0] == "drive":
                 params[key] = "name contains 'GK-SMOKE'"
             else:
                 params[key] = ""
