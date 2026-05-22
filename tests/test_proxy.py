@@ -7,6 +7,7 @@ URL construction and parameter normalization without hitting real Google APIs.
 
 from __future__ import annotations
 
+import base64
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1939,3 +1940,305 @@ class TestRouteDefQueryParams:
             query_params=["addParents", "removeParents"],
         )
         assert route.query_params == ["addParents", "removeParents"]
+
+
+# ---------------------------------------------------------------------------
+# Multipart upload tests
+# ---------------------------------------------------------------------------
+
+
+class TestMultipartUpload:
+    """Test multipart/related file upload for drive.files.upload."""
+
+    @pytest.mark.asyncio
+    async def test_missing_base64_content_returns_400(self, db_session):
+        """Without base64_content the upload should fail with 400."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.upload",
+            enabled=True,
+            policy_config='{"max_file_size_mb": 25}',
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm:
+            mock_cm.get_credentials.return_value = _mock_creds()
+
+            resp = await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.upload",
+                params={"name": "test.txt"},
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+        data = _unwrap(resp)
+        assert data["status"] == 400
+        assert "base64_content" in data["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_invalid_base64_returns_400(self, db_session):
+        """Non-base64 content should fail with 400."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.upload",
+            enabled=True,
+            policy_config='{"max_file_size_mb": 25}',
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm:
+            mock_cm.get_credentials.return_value = _mock_creds()
+
+            resp = await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.upload",
+                params={"name": "test.txt", "base64_content": "!!!not-base64!!!"},
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+        data = _unwrap(resp)
+        assert data["status"] == 400
+        assert "invalid base64" in data["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_file_size_exceeds_policy_returns_413(self, db_session):
+        """Base64 that decodes to a file larger than policy max_file_size_mb should fail."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.upload",
+            enabled=True,
+            policy_config='{"max_file_size_mb": 0.01}',
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        # Build ~50 KB of raw zeroes to exceed the 0.01 MB (10 KB) limit
+        large_b64 = base64.b64encode(b"\x00" * 50_000).decode()
+
+        with patch("gatekeeper.api.proxy.credential_manager") as mock_cm:
+            mock_cm.get_credentials.return_value = _mock_creds()
+
+            resp = await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.upload",
+                params={"name": "big.bin", "base64_content": large_b64},
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+        data = _unwrap(resp)
+        assert data["status"] == 413
+        assert "exceeds max" in data["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_successful_multipart_body(self, db_session):
+        """A valid small upload should construct multipart/related body correctly."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.upload",
+            enabled=True,
+            policy_config='{"max_file_size_mb": 25}',
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        raw = b"Hello from Gatekeeper multipart upload!"
+        b64 = base64.b64encode(raw).decode()
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "file123", "name": "hello.txt"}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            resp = await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.upload",
+                params={
+                    "name": "hello.txt",
+                    "base64_content": b64,
+                    "mime_type": "text/plain",
+                    "parents": ["folderABC"],
+                },
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+        data = _unwrap(resp)
+        assert data["name"] == "hello.txt"
+
+        call_args = mock_client.post.call_args
+        sent_body = call_args[1]["content"]
+        sent_headers = call_args[1].get("headers", {})
+
+        assert sent_headers["Content-Type"].startswith("multipart/related")
+        assert b"hello.txt" in sent_body
+        assert b"folderABC" in sent_body
+        assert raw in sent_body
+        assert b"text/plain" in sent_body
+
+    @pytest.mark.asyncio
+    async def test_mime_type_guessed_from_filename(self, db_session):
+        """When mime_type is omitted, it should be guessed from the filename."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.upload",
+            enabled=True,
+            policy_config='{"max_file_size_mb": 25}',
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        raw = b"PDF content"
+        b64 = base64.b64encode(raw).decode()
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "file456"}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.upload",
+                params={"name": "document.pdf", "base64_content": b64},
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+            call_args = mock_client.post.call_args
+            sent_body = call_args[1]["content"]
+            assert b"application/pdf" in sent_body
+
+    @pytest.mark.asyncio
+    async def test_custom_mime_type_overrides_guess(self, db_session):
+        """When mime_type is provided explicitly, it should override any guess."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.upload",
+            enabled=True,
+            policy_config='{"max_file_size_mb": 25}',
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        raw = b"some bytes"
+        b64 = base64.b64encode(raw).decode()
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "file789"}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.upload",
+                params={"name": "report.docx", "base64_content": b64, "mime_type": "application/octet-stream"},
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+            call_args = mock_client.post.call_args
+            sent_body = call_args[1]["content"]
+            assert b"application/octet-stream" in sent_body
+            # Default .docx guess would be wordprocessingml, which should NOT appear
+            assert b"application/vnd.openxmlformats-officedocument.wordprocessingml.document" not in sent_body
+
+    @pytest.mark.asyncio
+    async def test_upload_type_in_query_params(self, db_session):
+        """uploadType=multipart should be injected as a query parameter, not in body."""
+        policy = RoutePolicy(
+            module="drive",
+            route="drive.files.upload",
+            enabled=True,
+            policy_config='{"max_file_size_mb": 25}',
+        )
+        db_session.add(policy)
+        await db_session.commit()
+
+        api_key = _make_api_key()
+        proxy = GoogleProxy(db_session)
+
+        raw = b"tiny"
+        b64 = base64.b64encode(raw).decode()
+
+        with (
+            patch("gatekeeper.api.proxy.credential_manager") as mock_cm,
+            patch("gatekeeper.api.proxy.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_cm.get_credentials.return_value = _mock_creds()
+
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"id": "file999"}
+            mock_response.status_code = 200
+
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            await proxy.call_google(
+                module_name="drive",
+                route_id="drive.files.upload",
+                params={"name": "tiny.bin", "base64_content": b64},
+                api_key_record=api_key,
+                request_method="POST",
+            )
+
+            call_args = mock_client.post.call_args
+            sent_params = call_args[1].get("params", {}) or {}
+            assert sent_params.get("uploadType") == "multipart"

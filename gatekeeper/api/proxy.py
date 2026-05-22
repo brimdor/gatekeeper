@@ -8,6 +8,7 @@ import json
 import logging
 import mimetypes
 import os
+import io
 import uuid
 from pathlib import Path
 from typing import Any
@@ -233,6 +234,77 @@ class GoogleProxy:
         # Make the request
         headers = {"Authorization": f"Bearer {creds.token}"}
 
+        # Multipart upload: build multipart/related body
+        multipart_body = None
+        if route.multipart_upload:
+            query_params["uploadType"] = "multipart"
+
+            b64_content = body_params.pop("base64Content", None)
+            if not b64_content or not isinstance(b64_content, str):
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": True,
+                        "status": 400,
+                        "message": "Missing required 'base64_content' parameter",
+                    },
+                )
+            try:
+                file_bytes = base64.b64decode(b64_content)
+            except Exception:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": True,
+                        "status": 400,
+                        "message": "Invalid base64 content",
+                    },
+                )
+
+            # Check size against policy
+            size_mb = len(file_bytes) / (1024 * 1024)
+            max_size = float(decision.policy_config.get("max_file_size_mb", 25))
+            if size_mb > max_size:
+                return JSONResponse(
+                    status_code=413,
+                    content={
+                        "error": True,
+                        "status": 413,
+                        "message": f"File size {size_mb:.2f} MB exceeds max {max_size} MB",
+                    },
+                )
+
+            # Build metadata JSON from remaining body params
+            metadata = {}
+            metadata_fields = {"name", "mimeType", "parents", "description"}
+            for key in list(body_params.keys()):
+                if key in metadata_fields:
+                    metadata[key] = body_params.pop(key)
+
+            # Guess mime_type from filename if not provided
+            if "mimeType" not in metadata:
+                guessed, _ = mimetypes.guess_type(metadata.get("name", ""))
+                if guessed:
+                    metadata["mimeType"] = guessed
+
+            metadata_json = json.dumps(metadata, separators=(",", ":"))
+
+            # Build multipart body
+            boundary = f"gatekeeper_boundary_{uuid.uuid4().hex}"
+            mime_type = metadata.get("mimeType", "application/octet-stream")
+
+            buf = io.BytesIO()
+            buf.write(f"--{boundary}\r\n".encode())
+            buf.write(b"Content-Type: application/json; charset=UTF-8\r\n\r\n")
+            buf.write(metadata_json.encode("utf-8"))
+            buf.write(f"\r\n--{boundary}\r\n".encode())
+            buf.write(f"Content-Type: {mime_type}\r\n\r\n".encode())
+            buf.write(file_bytes)
+            buf.write(f"\r\n--{boundary}--\r\n".encode())
+            multipart_body = buf.getvalue()
+
+            headers["Content-Type"] = f"multipart/related; boundary={boundary}"
+
         try:
             async with httpx.AsyncClient() as client:
                 if route.method == "GET":
@@ -240,7 +312,14 @@ class GoogleProxy:
                     all_query = {**query_params, **body_params}
                     response = await client.get(url, params=all_query, headers=headers)
                 elif route.method == "POST":
-                    response = await client.post(url, json=body_params, headers=headers)
+                    if multipart_body is not None:
+                        response = await client.post(
+                            url, params=query_params, content=multipart_body, headers=headers
+                        )
+                    else:
+                        response = await client.post(
+                            url, params=query_params or None, json=body_params, headers=headers
+                        )
                 elif route.method == "PATCH":
                     response = await client.patch(
                         url,

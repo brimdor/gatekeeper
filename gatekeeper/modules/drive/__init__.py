@@ -214,6 +214,43 @@ class DriveModule(GoogleModule):
                 enabled_by_default=False,
             ),
             RouteDef(
+                route_id="drive.files.upload",
+                method="POST",
+                google_path="/upload/drive/v3/files",
+                description="Upload a new file with content to Google Drive via multipart",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Name for the new file",
+                        },
+                        "base64_content": {
+                            "type": "string",
+                            "description": "Base64-encoded file content",
+                        },
+                        "mime_type": {
+                            "type": "string",
+                            "description": "MIME type of the file. Guessed from name if omitted.",
+                        },
+                        "parents": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Parent folder IDs to add the file to",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "File description",
+                        },
+                    },
+                    "required": ["name", "base64_content"],
+                },
+                query_params=["uploadType"],
+                multipart_upload=True,
+                default_policy={"max_file_size_mb": 25},
+                enabled_by_default=False,
+            ),
+            RouteDef(
                 route_id="drive.files.update",
                 method="PATCH",
                 google_path="/drive/v3/files/{fileId}",

@@ -29,6 +29,10 @@ class RouteDef(BaseModel):
     # response instead of parsing it as JSON and optionally base64-encodes it
     # if it is below the max_inline_size_mb policy threshold.
     binary_response: bool = False
+    # Whether this route requires multipart/related body construction for file
+    # uploads. When True, the proxy builds a multipart body from metadata JSON
+    # plus raw file bytes instead of sending a JSON body.
+    multipart_upload: bool = False
     # Default policy config
     default_policy: dict[str, Any] = {}
     # Whether this route is enabled by default
