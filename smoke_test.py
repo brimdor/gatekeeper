@@ -134,6 +134,12 @@ class _DepBootstrap:
             sys.exit(1)
         print("✅ Dependencies installed.\n")
 
+        # If we just installed into a local venv but are still running on the
+        # system interpreter, restart inside the venv so imports resolve.
+        if venv_path.exists() and not in_venv:
+            print("🔧 Restarting inside .venv ...\n")
+            os.execl(str(venv_python), str(venv_python), *sys.argv)
+
 
 _DepBootstrap.ensure()
 # ─────────────────────────────────────────────────────────────────────────────
