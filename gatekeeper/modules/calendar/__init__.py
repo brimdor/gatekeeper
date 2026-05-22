@@ -599,19 +599,6 @@ class CalendarModule(GoogleModule):
                 default_policy={},
             ),
             RouteDef(
-                route_id="calendar.acl.insert",
-                method="POST",
-                google_path="/calendar/v3/calendars/{calendarId}/acl",
-                description="Creates an access control rule.",
-                input_schema={
-                    "type": "object",
-                    "properties": {},
-                },
-                query_params=["sendNotifications"],
-                default_policy={},
-                enabled_by_default=False,
-            ),
-            RouteDef(
                 route_id="calendar.acl.patch",
                 method="PATCH",
                 google_path="/calendar/v3/calendars/{calendarId}/acl/{ruleId}",
@@ -677,18 +664,6 @@ class CalendarModule(GoogleModule):
                 enabled_by_default=False,
             ),
             RouteDef(
-                route_id="calendar.calendars.insert",
-                method="POST",
-                google_path="/calendar/v3/calendars",
-                description="Creates a secondary calendar.",
-                input_schema={
-                    "type": "object",
-                    "properties": {},
-                },
-                default_policy={},
-                enabled_by_default=False,
-            ),
-            RouteDef(
                 route_id="calendar.calendars.patch",
                 method="PATCH",
                 google_path="/calendar/v3/calendars/{calendarId}",
@@ -722,19 +697,6 @@ class CalendarModule(GoogleModule):
                     "properties": {},
                 },
                 query_params=["conferenceDataVersion", "supportsAttachments"],
-                default_policy={},
-                enabled_by_default=False,
-            ),
-            RouteDef(
-                route_id="calendar.events.insert",
-                method="POST",
-                google_path="/calendar/v3/calendars/{calendarId}/events",
-                description="Creates an event.",
-                input_schema={
-                    "type": "object",
-                    "properties": {},
-                },
-                query_params=["conferenceDataVersion", "maxAttendees", "sendNotifications", "sendUpdates", "supportsAttachments"],
                 default_policy={},
                 enabled_by_default=False,
             ),
