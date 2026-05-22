@@ -102,8 +102,13 @@ class _DepBootstrap:
         print(f"🔧 Missing packages: {missing}")
 
         # Prefer uv for speed, fall back to pip --user.
+        in_venv = sys.prefix != sys.base_prefix
         if shutil.which("uv"):
-            cmd = ["uv", "pip", "install", "--system"] + missing
+            # Inside a venv we can omit --system; outside we need it.
+            if in_venv:
+                cmd = ["uv", "pip", "install"] + missing
+            else:
+                cmd = ["uv", "pip", "install", "--system"] + missing
         else:
             cmd = [sys.executable, "-m", "pip", "install", "--user", "-q"] + missing
             if os.environ.get("PIP_BREAK_SYSTEM_PACKAGES") == "1":
