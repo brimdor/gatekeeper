@@ -86,6 +86,7 @@ class GoogleProxy:
                 path=request_path,
                 status_code=403,
                 response_summary=decision.reason,
+                response_message=decision.reason,
             )
             return JSONResponse(
                 status_code=403,
@@ -98,6 +99,16 @@ class GoogleProxy:
         if not module:
             module = load_module(module_name)
             if not module:
+                await log_request(
+                    api_key_prefix=api_key_record.key_prefix,
+                    module=module_name,
+                    route=route_id,
+                    method=request_method,
+                    path=request_path,
+                    status_code=404,
+                    response_summary=f"Module {module_name} not found",
+                    response_message=f"Module {module_name} not found",
+                )
                 return JSONResponse(
                     status_code=404,
                     content={
@@ -114,6 +125,16 @@ class GoogleProxy:
                 break
 
         if not route:
+            await log_request(
+                api_key_prefix=api_key_record.key_prefix,
+                module=module_name,
+                route=route_id,
+                method=request_method,
+                path=request_path,
+                status_code=404,
+                response_summary=f"Route {route_id} not found",
+                response_message=f"Route {route_id} not found",
+            )
             return JSONResponse(
                 status_code=404,
                 content={"error": True, "status": 404, "message": f"Route {route_id} not found"},
@@ -135,6 +156,16 @@ class GoogleProxy:
         # Get Google credentials
         creds = credential_manager.get_credentials()
         if not creds or not creds.token:
+            await log_request(
+                api_key_prefix=api_key_record.key_prefix,
+                module=module_name,
+                route=route_id,
+                method=request_method,
+                path=request_path,
+                status_code=401,
+                response_summary="Google credentials not configured",
+                response_message="Google credentials not configured. Run 'gatekeeper auth'.",
+            )
             return JSONResponse(
                 status_code=401,
                 content={
@@ -253,6 +284,16 @@ class GoogleProxy:
 
             b64_content = body_params.pop("base64Content", None)
             if not b64_content or not isinstance(b64_content, str):
+                await log_request(
+                    api_key_prefix=api_key_record.key_prefix,
+                    module=module_name,
+                    route=route_id,
+                    method=request_method,
+                    path=request_path,
+                    status_code=400,
+                    response_summary="Missing required base64_content parameter",
+                    response_message="Missing required 'base64_content' parameter",
+                )
                 return JSONResponse(
                     status_code=400,
                     content={
@@ -264,6 +305,16 @@ class GoogleProxy:
             try:
                 file_bytes = base64.b64decode(b64_content)
             except Exception:
+                await log_request(
+                    api_key_prefix=api_key_record.key_prefix,
+                    module=module_name,
+                    route=route_id,
+                    method=request_method,
+                    path=request_path,
+                    status_code=400,
+                    response_summary="Invalid base64 content",
+                    response_message="Invalid base64 content",
+                )
                 return JSONResponse(
                     status_code=400,
                     content={
@@ -277,6 +328,16 @@ class GoogleProxy:
             size_mb = len(file_bytes) / (1024 * 1024)
             max_size = float(decision.policy_config.get("max_file_size_mb", 25))
             if size_mb > max_size:
+                await log_request(
+                    api_key_prefix=api_key_record.key_prefix,
+                    module=module_name,
+                    route=route_id,
+                    method=request_method,
+                    path=request_path,
+                    status_code=413,
+                    response_summary=f"File size {size_mb:.2f} MB exceeds max {max_size} MB",
+                    response_message=f"File size {size_mb:.2f} MB exceeds max {max_size} MB",
+                )
                 return JSONResponse(
                     status_code=413,
                     content={
@@ -411,6 +472,7 @@ class GoogleProxy:
                 path=request_path,
                 status_code=502,
                 response_summary=f"HTTP error: {str(e)[:150]}",
+                response_message=f"Google API request failed: {e}",
             )
             return JSONResponse(
                 status_code=502,
@@ -431,6 +493,7 @@ class GoogleProxy:
                 path=request_path,
                 status_code=500,
                 response_summary=f"Internal error: {str(e)[:150]}",
+                response_message=f"Internal error: {e}",
             )
             return JSONResponse(
                 status_code=500,

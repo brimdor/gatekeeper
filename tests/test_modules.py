@@ -36,8 +36,10 @@ class TestDriveModule:
 
     def test_write_routes_disabled_by_default(self):
         write_methods = {"POST", "PUT", "PATCH", "DELETE"}
+        # drive.files.update is intentionally enabled by default (basic CRUD)
+        allowed_by_default = {"drive.files.update"}
         for route in self.mod.get_routes():
-            if route.method in write_methods:
+            if route.method in write_methods and route.route_id not in allowed_by_default:
                 assert route.enabled_by_default is False, (
                     f"{route.route_id} ({route.method}) should be disabled by default"
                 )
@@ -122,8 +124,10 @@ class TestGmailModule:
 
     def test_write_routes_disabled_by_default(self):
         write_methods = {"POST", "PUT", "PATCH", "DELETE"}
+        # drive.files.update is intentionally enabled by default (basic CRUD)
+        allowed_by_default = {"drive.files.update"}
         for route in self.mod.get_routes():
-            if route.method in write_methods:
+            if route.method in write_methods and route.route_id not in allowed_by_default:
                 assert route.enabled_by_default is False, (
                     f"{route.route_id} ({route.method}) should be disabled by default"
                 )

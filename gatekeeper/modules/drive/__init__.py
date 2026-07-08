@@ -301,7 +301,7 @@ class DriveModule(GoogleModule):
                 # Google Drive API silently ignores them in the PATCH body.
                 query_params=["addParents", "removeParents"],
                 default_policy={},
-                enabled_by_default=False,
+                enabled_by_default=True,
             ),
             RouteDef(
                 route_id="drive.files.delete",

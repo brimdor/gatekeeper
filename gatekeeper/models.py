@@ -75,6 +75,8 @@ class AuditLog(Base):
     status_code: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     # Truncated response summary (avoid bloating DB)
     response_summary: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Human-readable response message for denials and errors (distinguishes 403 vs 404)
+    response_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC), index=True
     )

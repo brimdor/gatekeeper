@@ -261,6 +261,7 @@ def create_admin_router() -> APIRouter:
                     path=e.path,
                     status_code=e.status_code,
                     response_summary=e.response_summary,
+                    response_message=e.response_message,
                     created_at=format_dt(e.created_at),
                 )
                 for e in entries
