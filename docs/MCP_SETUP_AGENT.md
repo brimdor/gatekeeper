@@ -139,17 +139,20 @@ For a static reference of all 174 routes, their full schemas, and required OAuth
 
 ## How to call tools
 
-Every Gatekeeper tool requires an `api_key` parameter.
+Authentication is via the `X-Gatekeeper-API-Key` HTTP header on the POST
+`/mcp/messages/` request. The `api_key` argument remains as a fallback for
+clients that cannot send custom headers. Header auth is preferred because it
+keeps the raw key out of the LLM's context window.
 
 ### Examples
 
 | Tool | Arguments |
 |---|---|
-| `drive__files_list` | `{ "api_key": "gkp_...", "page_size": 10 }` |
-| `drive__files_get` | `{ "api_key": "gkp_...", "file_id": "1abc..." }` |
-| `gmail__messages_list` | `{ "api_key": "gkp_...", "page_size": 5, "q": "is:unread" }` |
-| `calendar__events_list` | `{ "api_key": "gkp_...", "calendar_id": "primary" }` |
-| `drive__files_create` | `{ "api_key": "gkp_...", "name": "notes.txt", "mime_type": "text/plain" }` |
+| `drive__files_list` | `{ "page_size": 10 }` |
+| `drive__files_get` | `{ "file_id": "1abc..." }` |
+| `gmail__messages_list` | `{ "page_size": 5, "q": "is:unread" }` |
+| `calendar__events_list` | `{ "calendar_id": "primary" }` |
+| `drive__files_create` | `{ "name": "notes.txt", "mime_type": "text/plain" }` |
 
 If a tool returns `403`, that route is disabled. Ask the admin to enable it.
 
@@ -168,6 +171,10 @@ Dots in the route ID become double underscores:
 | `calendar.freebusy.query` | `calendar__freebusy_query` |
 
 Source: `gatekeeper/mcp_server/__init__.py:153-161`.
+
+---
+
+## Error responses
 
 ---
 
