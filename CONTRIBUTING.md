@@ -30,18 +30,21 @@ Thanks for your interest in contributing! Here's how to get started.
 
 ## Making Changes
 
-- **Fork** the repository and create a feature branch from `main`
-- **Write tests** for any new functionality — aim for regression coverage
-- **Run the full test suite** before submitting: `pytest tests/ -v`
-- **Keep PRs focused** — one feature or fix per PR
-- **Document** new routes, config options, or CLI changes in the README
+- **Fork** the repository and create a feature branch from `main`.
+- **Write tests** for any new functionality — aim for regression coverage.
+- **Run the full test suite** before submitting: `pytest tests/ -v`.
+- **Keep PRs focused** — one feature or fix per PR.
+- **Document** new routes, config options, or CLI changes in the appropriate doc (see [README.md](README.md) § Documentation).
 
 ## Code Style
 
 - Python 3.11+ (type hints encouraged)
 - Follow the existing patterns in the codebase
 - Async where it matters (database, HTTP calls) — sync is fine for CLI
-- Module system: add new Google API modules under `gatekeeper/modules/`
+
+## Adding New Modules
+
+To add a new Google API module, follow [docs/MODULE_DEVELOPMENT.md](docs/MODULE_DEVELOPMENT.md). After route changes, regenerate [docs/ROUTES.md](docs/ROUTES.md) with `uv run python scripts/generate_routes_doc.py`.
 
 ## Reporting Issues
 
