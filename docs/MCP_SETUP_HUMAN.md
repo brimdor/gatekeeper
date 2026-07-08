@@ -189,6 +189,10 @@ curl -s http://10.0.30.10:8080/mcp/sse
 # Should not return 404 or 405
 ```
 
+> **Header auth:** Clients that support custom headers can also send the API
+> key via the `X-Gatekeeper-API-Key` header on the SSE / messages request. See
+> [MCP_SETUP_AGENT.md](MCP_SETUP_AGENT.md) § How to call tools for details.
+
 ---
 
 ## Step 6 — Understand how MCP tools map to routes

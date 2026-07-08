@@ -14,11 +14,26 @@ from fastapi import FastAPI
 from starlette.responses import JSONResponse
 
 from gatekeeper.config import settings
-from gatekeeper.db import async_session
 from gatekeeper.models import ApiKey
 from gatekeeper.policy import PolicyEngine
 
+# MCP SDK exposes the current request context as a ContextVar so handlers can
+# read HTTP headers set by the client transport (SSE / StreamableHTTP).
+from mcp.server.lowlevel.server import request_ctx
+
 logger = logging.getLogger(__name__)
+
+
+def _get_async_session():
+    """Return the current async_session callable, allowing tests to patch gatekeeper.db.async_session."""
+    import gatekeeper.db
+
+    return gatekeeper.db.async_session
+
+
+def _get_session():
+    """Return an AsyncSession from the current async_session callable."""
+    return _get_async_session()()
 
 # Lazy-initialised singleton
 _mcp_instance: Any | None = None
@@ -67,7 +82,7 @@ async def _resolve_api_key(raw_key: str) -> ApiKey | None:
     import bcrypt
     from sqlalchemy import select
 
-    async with async_session() as session:
+    async with _get_session() as session:
         result = await session.execute(select(ApiKey).where(ApiKey.is_active == True))  # noqa: E712
         keys = result.scalars().all()
         for k in keys:
@@ -104,13 +119,16 @@ def create_mcp_server() -> Any:
         instructions=(
             "Gatekeeper MCP server — a policy gateway for Google Workspace APIs "
             "(Drive, Gmail, Calendar). Each tool proxies a single Google API route "
-            "through the policy engine. You MUST supply an ``api_key`` argument to "
-            "every tool call for authentication. Available tools depend on which "
-            "routes are enabled by the administrator — call list_tools to see what's "
-            "currently available. Do not assume any route is enabled or disabled; "
-            "if a tool call returns a 403 error, that route is disabled and only "
-            "the administrator can enable it. You cannot bypass disabled routes, "
-            "modify policies, or access admin settings."
+            "through the policy engine. Authentication is via the X-Gatekeeper-API-Key "
+            "HTTP header on the POST /mcp/messages/ request. As a fallback for clients "
+            "that cannot send custom headers, an api_key argument is also accepted, "
+            "but header auth is preferred because it keeps the key out of the LLM "
+            "context. Available tools depend on which routes are enabled by the "
+            "administrator — call list_tools to see what's currently available. Do not "
+            "assume any route is enabled or disabled; if a tool call returns a 403 "
+            "error, that route is disabled and only the administrator can enable it. "
+            "You cannot bypass disabled routes, modify policies, or access admin "
+            "settings."
         ),
         host=settings.host,
         transport_security=_build_transport_security(),
@@ -128,7 +146,7 @@ def create_mcp_server() -> Any:
 
         tools: list[MCPTool] = []
 
-        async with async_session() as session:
+        async with _get_session() as session:
             policy_engine = PolicyEngine(session)
 
             for module_name in AVAILABLE_MODULES:
@@ -145,10 +163,13 @@ def create_mcp_server() -> Any:
                         props = dict(schema.get("properties", {}))
                         props["api_key"] = {
                             "type": "string",
-                            "description": "Gatekeeper API key for authentication",
+                            "description": (
+                                "Gatekeeper API key. Optional when the X-Gatekeeper-API-Key HTTP header "
+                                "is set on the request; otherwise required for authentication."
+                            ),
                         }
                         required = list(schema.get("required", []))
-                        required.append("api_key")
+                        # api_key is no longer required; header auth is preferred.
 
                         # Strip module prefix from route_id to avoid redundancy
                         # e.g., "gmail.messages.list" → suffix "messages.list"
@@ -184,8 +205,25 @@ def create_mcp_server() -> Any:
         from gatekeeper.api.proxy import GoogleProxy
         from gatekeeper.modules import load_module
 
-        # Extract and validate the API key
-        api_key = arguments.pop("api_key", None)
+        # ---- AUTH: header first, argument fallback, always pop ----
+        api_key: str | None = None
+        try:
+            ctx = request_ctx.get()
+        except LookupError:
+            ctx = None
+
+        if ctx is not None:
+            request = getattr(ctx, "request", None)
+            if request is not None:
+                # Starlette Headers use case-insensitive lookup
+                api_key = request.headers.get("X-Gatekeeper-API-Key") or None
+
+        # Always pop api_key from arguments so it never reaches the proxy,
+        # regardless of whether header auth was used.
+        arg_api_key = arguments.pop("api_key", None)
+        if not api_key:
+            api_key = arg_api_key
+
         if not api_key:
             return [
                 types.TextContent(
@@ -194,7 +232,7 @@ def create_mcp_server() -> Any:
                         {
                             "error": True,
                             "status": 401,
-                            "message": "API key required (pass as api_key argument)",
+                            "message": "API key required (set X-Gatekeeper-API-Key header or pass api_key argument)",
                         }
                     ),
                 )
@@ -258,7 +296,7 @@ def create_mcp_server() -> Any:
                 )
             ]
 
-        async with async_session() as session:
+        async with _get_session() as session:
             proxy = GoogleProxy(session)
             result = await proxy.call_google(
                 module_name=module_name,
