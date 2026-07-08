@@ -64,12 +64,6 @@ podman pull --tls-verify=false 10.0.20.11:32309/broville/gatekeeper:latest
 podman pull --tls-verify=false 10.0.20.11:32309/broville/gatekeeper:canary
 ```
 
-If you need to push images to the registry, use:
-
-```bash
-podman push --tls-verify=false your-image 10.0.20.11:32309/broville/gatekeeper:tag
-```
-
 **Note:** The `--tls-verify=false` flag is required because the homelab registry uses a self-signed certificate. This is safe within the trusted homelab network.
 
 ### Local Build (Alternative)
@@ -267,11 +261,41 @@ podman exec -it gatekeeper-brimdor gatekeeper auth --flow device
 
 ## Step 7: Verify It Works
 
-### Health Check
+### Health check
 
 ```bash
 curl http://localhost:8081/health
 # Expected: {"status":"ok","version":"0.1.0"}
+```
+
+### `gatekeeper status` output sample
+
+From a fresh dev instance:
+
+```text
+==================================================
+  Gatekeeper Status
+==================================================
+  Version:      0.1.0
+  Host:         127.0.0.1
+  Port:         8080
+  Debug:        False
+  Database:     sqlite+aiosqlite:///./gatekeeper.db
+  MCP Enabled:  True
+  Modules:
+    Drive:      ❌
+    Gmail:      ❌
+    Calendar:   ❌
+  Google OAuth: ❌ Not configured
+  Admin User:   admin
+  Service:      ❌ Not installed (run: gatekeeper service install)
+==================================================
+```
+
+In a container, run:
+
+```bash
+podman exec gatekeeper-brimdor gatekeeper status
 ```
 
 ### API Key Quick Test
@@ -292,9 +316,9 @@ Login with username `admin` and the password from `gatekeeper_secrets.json`.
 
 ---
 
-## Step 8: Install systemd Service
+## Step 8: Install systemd Service (Canonical)
 
-For production, run the container as a systemd service so it starts on boot and restarts on failure.
+For production, run the container as a systemd service so it starts on boot and restarts on failure. This is the canonical systemd setup; other docs link here.
 
 ### Option A: systemd Quadlet (Recommended)
 
@@ -372,8 +396,6 @@ podman generate systemd --new --name gatekeeper-brimdor > ~/.config/systemd/user
 systemctl --user daemon-reload
 systemctl --user enable --now gatekeeper-brimdor
 ```
-
-This captures the full `podman run` command as a systemd `ExecStart`. It is simpler but less declarative than Quadlets.
 
 ---
 
