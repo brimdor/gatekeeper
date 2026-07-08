@@ -37,3 +37,9 @@ class RouteDef(BaseModel):
     default_policy: dict[str, Any] = {}
     # Whether this route is enabled by default
     enabled_by_default: bool = True
+    # Optional per-route base URL. When set, the proxy uses it instead of the
+    # global GOOGLE_API_BASE for URL construction. Required for Google APIs
+    # that don't live on www.googleapis.com (Sheets, Docs, Slides).
+    # Examples: "https://sheets.googleapis.com", "https://docs.googleapis.com",
+    # "https://slides.googleapis.com". Defaults to None (use GOOGLE_API_BASE).
+    base_url: str | None = None

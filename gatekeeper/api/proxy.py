@@ -193,13 +193,18 @@ class GoogleProxy:
             normalized_params["alt"] = "media"
 
         # Construct the final URL
+        # Per-route base_url (set on Sheets/Docs/Slides routes) takes priority
+        # over the global GOOGLE_API_BASE; everything else falls back to the
+        # default Google API host. This is the only URL-construction change
+        # needed to support APIs on different hostnames.
+        base = route.base_url or GOOGLE_API_BASE
         if route.google_path.startswith("/"):
             # google_path already includes full API path (e.g., /calendar/v3/...)
-            url = f"{GOOGLE_API_BASE}{google_path}"
+            url = f"{base}{google_path}"
         else:
             # Relative path — prepend the module API prefix
             api_prefix = MODULE_API_MAP.get(module_name, f"/{module_name}/v1")
-            url = f"{GOOGLE_API_BASE}{api_prefix}/{google_path}"
+            url = f"{base}{api_prefix}/{google_path}"
 
         # Remove path params from normalized_params — remaining ones are query/body params
         # (path params were already extracted and substituted above)
@@ -223,10 +228,17 @@ class GoogleProxy:
         # sent as URL query parameters rather than in the JSON body.
         # Google's API silently ignores addParents/removeParents if they're
         # in the PATCH body — they MUST be query params.
+        # Route definitions use snake_case, but normalized params use camelCase,
+        # so compare against the camelCase form of each configured query param.
         query_params = {}
         body_params = {}
+        camel_query_keys = {
+            parts[0] + "".join(p.capitalize() for p in parts[1:])
+            for qp in route.query_params
+            for parts in [qp.split("_")]
+        }
         for key, value in normalized_params.items():
-            if key in route.query_params:
+            if key in camel_query_keys:
                 query_params[key] = value
             else:
                 body_params[key] = value
@@ -332,7 +344,9 @@ class GoogleProxy:
                         url, params=query_params or None, headers=headers
                     )
                 elif route.method == "PUT":
-                    response = await client.put(url, json=body_params, headers=headers)
+                    response = await client.put(
+                        url, params=query_params or None, json=body_params or None, headers=headers
+                    )
                 else:
                     response = await client.request(
                         route.method,

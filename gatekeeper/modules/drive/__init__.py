@@ -9,10 +9,18 @@ from gatekeeper.modules.route import RouteDef
 class DriveModule(GoogleModule):
     name = "drive"
     display_name = "Google Drive"
-    description = "Browse, search, and read files in Google Drive"
+    description = (
+        "Browse, search, and read files in Google Drive, "
+        "including Sheets, Docs, and Slides content"
+    )
     icon = "📁"
 
-    required_scopes = ["https://www.googleapis.com/auth/drive"]
+    required_scopes = [
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/documents",
+        "https://www.googleapis.com/auth/presentations",
+    ]
 
     def get_routes(self) -> list[RouteDef]:
         return [
@@ -1144,6 +1152,390 @@ class DriveModule(GoogleModule):
                     "properties": {},
                 },
                 query_params=["useDomainAdminAccess"],
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            # ── Google Sheets API (sheets.googleapis.com) ──
+            # All routes target https://sheets.googleapis.com, NOT
+            # www.googleapis.com, so each carries base_url=...
+            RouteDef(
+                route_id="drive.sheets.spreadsheets.get",
+                method="GET",
+                base_url="https://sheets.googleapis.com",
+                google_path="/v4/spreadsheets/{spreadsheetId}",
+                description="Get spreadsheet metadata (sheets, named ranges, properties)",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "spreadsheet_id": {
+                            "type": "string",
+                            "description": "The ID of the spreadsheet to retrieve",
+                        },
+                        "fields": {
+                            "type": "string",
+                            "description": "Fields to include in the response (partial response)",
+                        },
+                    },
+                    "required": ["spreadsheet_id"],
+                },
+                query_params=["fields"],
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="drive.sheets.values.get",
+                method="GET",
+                base_url="https://sheets.googleapis.com",
+                google_path="/v4/spreadsheets/{spreadsheetId}/values/{range}",
+                description="Read a single range of cell values from a spreadsheet",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "spreadsheet_id": {
+                            "type": "string",
+                            "description": "The ID of the spreadsheet",
+                        },
+                        "range": {
+                            "type": "string",
+                            "description": "A1 or R1C1 notation of the range (e.g., 'Sheet1!A1:C10')",
+                        },
+                        "value_render_option": {
+                            "type": "string",
+                            "description": "FORMATTED_VALUE, UNFORMATTED_VALUE, or FORMULA",
+                            "default": "FORMATTED_VALUE",
+                        },
+                        "date_time_render_option": {
+                            "type": "string",
+                            "description": "SERIAL_NUMBER or FORMATTED_STRING",
+                        },
+                        "major_dimension": {
+                            "type": "string",
+                            "description": "ROWS or COLUMNS",
+                        },
+                    },
+                    "required": ["spreadsheet_id", "range"],
+                },
+                query_params=["value_render_option", "date_time_render_option", "major_dimension"],
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="drive.sheets.values.batch_get",
+                method="GET",
+                base_url="https://sheets.googleapis.com",
+                google_path="/v4/spreadsheets/{spreadsheetId}/values:batchGet",
+                description="Read multiple ranges of cell values in one request",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "spreadsheet_id": {
+                            "type": "string",
+                            "description": "The ID of the spreadsheet",
+                        },
+                        "ranges": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "A1/R1C1 ranges to retrieve (e.g., ['Sheet1!A1:B2'])",
+                        },
+                        "value_render_option": {
+                            "type": "string",
+                            "description": "FORMATTED_VALUE, UNFORMATTED_VALUE, or FORMULA",
+                        },
+                        "date_time_render_option": {"type": "string"},
+                        "major_dimension": {"type": "string", "description": "ROWS or COLUMNS"},
+                    },
+                    "required": ["spreadsheet_id"],
+                },
+                query_params=["ranges", "value_render_option", "date_time_render_option", "major_dimension"],
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="drive.sheets.values.update",
+                method="PUT",
+                base_url="https://sheets.googleapis.com",
+                google_path="/v4/spreadsheets/{spreadsheetId}/values/{range}",
+                description="Write values to a range of cells in a spreadsheet",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "spreadsheet_id": {"type": "string"},
+                        "range": {"type": "string", "description": "A1/R1C1 range to write"},
+                        "values": {
+                            "type": "array",
+                            "items": {"type": "array", "items": {}},
+                            "description": "2D array of values (e.g., [['A', 1], ['B', 2]])",
+                        },
+                        "value_input_option": {
+                            "type": "string",
+                            "description": "RAW or USER_ENTERED",
+                            "default": "RAW",
+                        },
+                    },
+                    "required": ["spreadsheet_id", "range", "values"],
+                },
+                query_params=["value_input_option"],
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="drive.sheets.values.append",
+                method="POST",
+                base_url="https://sheets.googleapis.com",
+                google_path="/v4/spreadsheets/{spreadsheetId}/values/{range}:append",
+                description="Append values after the last row of data in a range",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "spreadsheet_id": {"type": "string"},
+                        "range": {
+                            "type": "string",
+                            "description": "A1 notation of the table to search (e.g., 'Sheet1!A1:B')",
+                        },
+                        "values": {
+                            "type": "array",
+                            "items": {"type": "array", "items": {}},
+                            "description": "2D array of values to append",
+                        },
+                        "value_input_option": {
+                            "type": "string",
+                            "default": "RAW",
+                            "description": "RAW or USER_ENTERED",
+                        },
+                        "insert_data_option": {
+                            "type": "string",
+                            "default": "OVERWRITE",
+                            "description": "OVERWRITE or INSERT_ROWS",
+                        },
+                    },
+                    "required": ["spreadsheet_id", "range", "values"],
+                },
+                query_params=["value_input_option", "insert_data_option"],
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="drive.sheets.values.clear",
+                method="POST",
+                base_url="https://sheets.googleapis.com",
+                google_path="/v4/spreadsheets/{spreadsheetId}/values/{range}:clear",
+                description="Clear values from a range of cells",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "spreadsheet_id": {"type": "string"},
+                        "range": {"type": "string", "description": "A1/R1C1 range to clear"},
+                    },
+                    "required": ["spreadsheet_id", "range"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="drive.sheets.values.batch_update",
+                method="POST",
+                base_url="https://sheets.googleapis.com",
+                google_path="/v4/spreadsheets/{spreadsheetId}/values:batchUpdate",
+                description="Update multiple ranges of cell values in a single request",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "spreadsheet_id": {"type": "string"},
+                        "value_input_option": {
+                            "type": "string",
+                            "default": "RAW",
+                            "description": "RAW or USER_ENTERED",
+                        },
+                        "data": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "range": {"type": "string"},
+                                    "values": {
+                                        "type": "array",
+                                        "items": {"type": "array", "items": {}},
+                                    },
+                                },
+                            },
+                            "description": "One entry per range to write",
+                        },
+                    },
+                    "required": ["spreadsheet_id", "data"],
+                },
+                query_params=["value_input_option"],
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="drive.sheets.spreadsheets.create",
+                method="POST",
+                base_url="https://sheets.googleapis.com",
+                google_path="/v4/spreadsheets",
+                description="Create a new spreadsheet (optional title and sheets)",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Title of the new spreadsheet"},
+                        "sheet_titles": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Names of sheets to create within the spreadsheet",
+                        },
+                    },
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="drive.sheets.spreadsheets.batch_update",
+                method="POST",
+                base_url="https://sheets.googleapis.com",
+                google_path="/v4/spreadsheets/{spreadsheetId}:batchUpdate",
+                description="Apply one or more updates to a spreadsheet (formatting, formulas, charts, etc.)",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "spreadsheet_id": {"type": "string"},
+                        "requests": {
+                            "type": "array",
+                            "items": {"type": "object"},
+                            "description": "List of update request objects (see Sheets API batchUpdate reference)",
+                        },
+                    },
+                    "required": ["spreadsheet_id", "requests"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+
+            # ── Google Docs API (docs.googleapis.com) ──
+            RouteDef(
+                route_id="drive.docs.documents.get",
+                method="GET",
+                base_url="https://docs.googleapis.com",
+                google_path="/v1/documents/{documentId}",
+                description="Get the full content and structure of a Google Doc",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "document_id": {"type": "string"},
+                        "suggestions_view_mode": {
+                            "type": "string",
+                            "description": (
+                                "SUGGESTIONS_INLINE, PREVIEW_SUGGESTIONS_ACCEPTED, "
+                                "or PREVIEW_WITHOUT_SUGGESTIONS"
+                            ),
+                        },
+                    },
+                    "required": ["document_id"],
+                },
+                query_params=["suggestions_view_mode"],
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="drive.docs.documents.create",
+                method="POST",
+                base_url="https://docs.googleapis.com",
+                google_path="/v1/documents",
+                description="Create a new Google Doc with an optional title",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Title for the new document"},
+                    },
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="drive.docs.documents.batch_update",
+                method="POST",
+                base_url="https://docs.googleapis.com",
+                google_path="/v1/documents/{documentId}:batchUpdate",
+                description="Apply one or more updates to a Google Doc (insert text, delete, style, etc.)",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "document_id": {"type": "string"},
+                        "requests": {
+                            "type": "array",
+                            "items": {"type": "object"},
+                            "description": "Update requests (InsertTextRequest, DeleteContentRangeRequest, etc.)",
+                        },
+                        "write_control": {
+                            "type": "object",
+                            "description": "Optional concurrency control (required_revision_id / target_revision_id)",
+                        },
+                    },
+                    "required": ["document_id", "requests"],
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+
+            # ── Google Slides API (slides.googleapis.com) ──
+            RouteDef(
+                route_id="drive.slides.presentations.get",
+                method="GET",
+                base_url="https://slides.googleapis.com",
+                google_path="/v1/presentations/{presentationId}",
+                description="Get the full content and structure of a Google Slides presentation",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "presentation_id": {"type": "string"},
+                    },
+                    "required": ["presentation_id"],
+                },
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="drive.slides.presentations.pages.get",
+                method="GET",
+                base_url="https://slides.googleapis.com",
+                google_path="/v1/presentations/{presentationId}/pages/{pageObjectId}",
+                description="Get a specific page (slide) from a presentation",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "presentation_id": {"type": "string"},
+                        "page_object_id": {"type": "string"},
+                    },
+                    "required": ["presentation_id", "page_object_id"],
+                },
+                default_policy={},
+            ),
+            RouteDef(
+                route_id="drive.slides.presentations.create",
+                method="POST",
+                base_url="https://slides.googleapis.com",
+                google_path="/v1/presentations",
+                description="Create a new Google Slides presentation with an optional title",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Title for the new presentation"},
+                    },
+                },
+                default_policy={},
+                enabled_by_default=False,
+            ),
+            RouteDef(
+                route_id="drive.slides.presentations.batch_update",
+                method="POST",
+                base_url="https://slides.googleapis.com",
+                google_path="/v1/presentations/{presentationId}:batchUpdate",
+                description="Apply updates to a presentation (add slides, insert text, update shapes, etc.)",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "presentation_id": {"type": "string"},
+                        "requests": {
+                            "type": "array",
+                            "items": {"type": "object"},
+                            "description": "Update requests (CreateSlideRequest, InsertTextRequest, etc.)",
+                        },
+                    },
+                    "required": ["presentation_id", "requests"],
+                },
                 default_policy={},
                 enabled_by_default=False,
             ),

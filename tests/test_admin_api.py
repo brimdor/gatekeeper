@@ -162,7 +162,7 @@ class TestRoutePolicies:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
-        assert len(data) >= 39  # 13 + 14 + 12 routes
+        assert len(data) >= 71  # 29 + 14 + 12 + 16 workspace routes (Drive gained 16)
 
     async def test_list_routes_filtered_by_module(self, client, admin_headers):
         """GET /admin/api/routes?module=drive returns only drive routes."""
