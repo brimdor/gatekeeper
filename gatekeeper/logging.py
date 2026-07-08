@@ -18,11 +18,13 @@ async def log_request(
     path: str,
     status_code: int,
     response_summary: str | None = None,
+    response_message: str | None = None,
 ) -> None:
     """Log a gateway request to the audit trail.
 
     Creates an AuditLog row in the database. Truncates response_summary
-    to 200 chars. Catches and logs DB errors without failing the request.
+    to 200 chars and response_message to 500 chars. Catches and logs DB
+    errors without failing the request.
     """
     try:
         async with async_session() as session:
@@ -34,6 +36,7 @@ async def log_request(
                 path=path,
                 status_code=status_code,
                 response_summary=(response_summary[:200] if response_summary else None),
+                response_message=(response_message[:500] if response_message else None),
             )
             session.add(entry)
             await session.commit()

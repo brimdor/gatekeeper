@@ -51,6 +51,7 @@ class AuditLogResponse(BaseModel):
     path: str
     status_code: int
     response_summary: str | None = None
+    response_message: str | None = None
     created_at: str | None = None
 
 

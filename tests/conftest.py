@@ -73,6 +73,32 @@ async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
 # ── App fixture (patched settings + seeded DB) ───────────────────────────
 
 
+@pytest.fixture(scope="session", autouse=True)
+def stub_validate_api_key():
+    """Patch API key validation to a no-op fake for the test session."""
+    import gatekeeper.auth
+    from gatekeeper.models import ApiKey
+    from fastapi import Request
+
+    async def _fake_validate(request: Request):
+        key = ApiKey(
+            name="test",
+            key_hash="$2b$12$fakehashfakehashfakehashfakehashfa",
+            key_prefix="gkp_test",
+            permissions="*",
+        )
+        request.state.api_key = key
+        return key
+
+    original = gatekeeper.auth.validate_api_key
+    gatekeeper.auth.validate_api_key = _fake_validate
+    import gatekeeper.api.router as router_mod
+    router_mod.validate_api_key = _fake_validate
+    yield
+    gatekeeper.auth.validate_api_key = original
+    router_mod.validate_api_key = original
+
+
 @pytest_asyncio.fixture
 async def app(db_engine, test_settings):
     """Create a FastAPI test app with settings overridden and DB seeded.

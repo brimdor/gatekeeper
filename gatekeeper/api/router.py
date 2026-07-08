@@ -24,6 +24,23 @@ from gatekeeper.modules import AVAILABLE_MODULES, load_module
 logger = logging.getLogger(__name__)
 
 
+async def _collect_params(request: Request) -> dict:
+    """Merge URL query params with the JSON body.
+
+    Precedence: JSON body keys win on collision (so callers can override a
+    query string with an explicit body field). Query params survive when the
+    body is missing, unparsable, or doesn't include them.
+    """
+    query = dict(request.query_params)
+    try:
+        body = await request.json()
+    except Exception:
+        return query
+    if not isinstance(body, dict):
+        return query
+    return {**query, **body}
+
+
 def create_api_router() -> APIRouter:
     """Create the main API router, mounting module sub-routers for ALL modules.
 
@@ -106,10 +123,7 @@ def _make_endpoint(
 
             async for session in get_db_session():
                 proxy = GoogleProxy(session)
-                try:
-                    params = await request.json()
-                except Exception:
-                    params = dict(request.query_params)
+                params = await _collect_params(request)
                 return await proxy.call_google(
                     module_name=module_name,
                     route_id=route_id,
@@ -130,10 +144,7 @@ def _make_endpoint(
 
             async for session in get_db_session():
                 proxy = GoogleProxy(session)
-                try:
-                    params = await request.json()
-                except Exception:
-                    params = dict(request.query_params)
+                params = await _collect_params(request)
                 return await proxy.call_google(
                     module_name=module_name,
                     route_id=route_id,
@@ -154,10 +165,7 @@ def _make_endpoint(
 
             async for session in get_db_session():
                 proxy = GoogleProxy(session)
-                try:
-                    params = await request.json()
-                except Exception:
-                    params = {}
+                params = await _collect_params(request)
                 return await proxy.call_google(
                     module_name=module_name,
                     route_id=route_id,
