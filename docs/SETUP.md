@@ -163,8 +163,18 @@ This is a one-time setup in the Google Cloud Console.
    | **Gmail** | `https://www.googleapis.com/auth/gmail.settings.basic` |
    | **Calendar** | `https://www.googleapis.com/auth/calendar` |
    | **Calendar** | `https://www.googleapis.com/auth/calendar.events` |
+   | **Forms** | `https://www.googleapis.com/auth/forms.body` |
+   | **Forms** | `https://www.googleapis.com/auth/forms.body.readonly` |
+   | **Forms** | `https://www.googleapis.com/auth/forms.responses.readonly` |
+   | **Apps Script** | `https://www.googleapis.com/auth/script.projects` |
+   | **Apps Script** | `https://www.googleapis.com/auth/script.projects.readonly` |
+   | **Apps Script** | `https://www.googleapis.com/auth/script.deployments` |
+   | **Apps Script** | `https://www.googleapis.com/auth/script.deployments.readonly` |
+   | **Apps Script** | `https://www.googleapis.com/auth/script.processes` |
+   | **Apps Script** | `https://www.googleapis.com/auth/script.metrics` |
 
    The Drive scopes match `gatekeeper/modules/drive/__init__.py:required_scopes`.
+   The Forms and Apps Script scopes match their module `required_scopes` and are requested only when their module flags are enabled.
 
 3. Add yourself as a **Test User** on the **Audience** page.
 

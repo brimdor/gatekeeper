@@ -16,6 +16,8 @@ AVAILABLE_MODULES: dict[str, str] = {
     "drive": "gatekeeper.modules.drive",
     "gmail": "gatekeeper.modules.gmail",
     "calendar": "gatekeeper.modules.calendar",
+    "forms": "gatekeeper.modules.forms",
+    "appsscript": "gatekeeper.modules.appsscript",
 }
 
 _loaded_modules: dict[str, GoogleModule] = {}
