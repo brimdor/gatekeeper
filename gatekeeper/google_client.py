@@ -171,6 +171,10 @@ class GoogleCredentialManager:
             enabled.append("gmail")
         if settings.calendar_enabled:
             enabled.append("calendar")
+        if settings.forms_enabled:
+            enabled.append("forms")
+        if settings.appsscript_enabled:
+            enabled.append("appsscript")
 
         # If nothing enabled, use read-only scopes for all modules
         if not enabled:
@@ -178,6 +182,10 @@ class GoogleCredentialManager:
                 "https://www.googleapis.com/auth/drive.readonly",
                 "https://www.googleapis.com/auth/gmail.readonly",
                 "https://www.googleapis.com/auth/calendar.readonly",
+                "https://www.googleapis.com/auth/forms.body.readonly",
+                "https://www.googleapis.com/auth/forms.responses.readonly",
+                "https://www.googleapis.com/auth/script.projects.readonly",
+                "https://www.googleapis.com/auth/script.deployments.readonly",
             ]
 
         for name in enabled:

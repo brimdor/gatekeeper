@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 
-**Policy gateway for Google Workspace APIs** — fine-grained control over what AI agents can do with your Google Drive, Gmail, and Calendar. Exposes enabled routes as MCP tools so agents discover and call only what you allow.
+**Policy gateway for Google Workspace APIs** — fine-grained control over what AI agents can do with your Google Drive, Gmail, Calendar, Forms, and Apps Script. Exposes enabled routes as MCP tools so agents discover and call only what you allow.
 
 ---
 
@@ -70,7 +70,7 @@ For the full design walkthrough, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md
 
 ## Setup
 
-1. **Configure environment:** `cp .env.example .env` and set at minimum `GATEKEEPER_GOOGLE_CLIENT_ID`, `GATEKEEPER_GOOGLE_CLIENT_SECRET`, and the modules you want (`GATEKEEPER_DRIVE_ENABLED`, etc.).
+1. **Configure environment:** `cp .env.example .env` and set at minimum `GATEKEEPER_GOOGLE_CLIENT_ID`, `GATEKEEPER_GOOGLE_CLIENT_SECRET`, and the modules you want (`GATEKEEPER_DRIVE_ENABLED`, `GATEKEEPER_GMAIL_ENABLED`, `GATEKEEPER_CALENDAR_ENABLED`, `GATEKEEPER_FORMS_ENABLED`, `GATEKEEPER_APPSSCRIPT_ENABLED`).
 2. **Google OAuth setup:** Run `gatekeeper auth` (desktop flow) or `gatekeeper auth --flow device` (headless). See the canonical OAuth steps in [docs/SETUP.md](docs/SETUP.md) § Google OAuth Setup.
 3. **Start the server:** `gatekeeper serve`.
 4. **(Optional) Run as a systemd service:** `gatekeeper service install` then `gatekeeper service enable`. See [docs/PODMAN_DEPLOYMENT.md](docs/PODMAN_DEPLOYMENT.md) § systemd.
@@ -136,15 +136,23 @@ Example calls:
 
 ```bash
 # List Gmail messages
-curl -H "Authorization: Bearer gkp_your_key" \
+curl -H "Authorization: Bearer *** \
   http://localhost:8080/api/v1/gmail/messages/list
 
 # Get a Drive file
-curl -H "Authorization: Bearer gkp_your_key" \
+curl -H "Authorization: Bearer *** \
   http://localhost:8080/api/v1/drive/files/get?file_id=1abc...
+
+# List responses from a Google Form
+curl -H "Authorization: Bearer *** \
+  "http://localhost:8080/api/v1/forms/forms/responses/list?form_id=FORM_ID&page_size=20"
+
+# Get an Apps Script project
+curl -H "Authorization: Bearer *** \
+  "http://localhost:8080/api/v1/appsscript/projects/get?script_id=SCRIPT_ID"
 ```
 
-For the full reference — all 174 routes, auth, rate limits, binary/multipart routes, and admin endpoints — see [docs/API_REFERENCE.md](docs/API_REFERENCE.md). The canonical route table lives in [docs/ROUTES.md](docs/ROUTES.md).
+For the full reference — all 200 routes, auth, rate limits, binary/multipart routes, and admin endpoints — see [docs/API_REFERENCE.md](docs/API_REFERENCE.md). The canonical route table lives in [docs/ROUTES.md](docs/ROUTES.md).
 
 ---
 
@@ -197,6 +205,8 @@ All configuration uses environment variables (prefix `GATEKEEPER_`) or `.env`:
 | `GATEKEEPER_DRIVE_ENABLED` | `false` | Enable Drive OAuth scope |
 | `GATEKEEPER_GMAIL_ENABLED` | `false` | Enable Gmail OAuth scope |
 | `GATEKEEPER_CALENDAR_ENABLED` | `false` | Enable Calendar OAuth scope |
+| `GATEKEEPER_FORMS_ENABLED` | `false` | Enable Forms OAuth scope |
+| `GATEKEEPER_APPSSCRIPT_ENABLED` | `false` | Enable Apps Script OAuth scope |
 
 Auto-generated secrets are persisted in `gatekeeper_secrets.json` (chmod 600). The file is already in `.gitignore`.
 

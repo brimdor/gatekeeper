@@ -81,6 +81,8 @@ class Settings(BaseSettings):
     drive_enabled: bool = False
     gmail_enabled: bool = False
     calendar_enabled: bool = False
+    forms_enabled: bool = False
+    appsscript_enabled: bool = False
 
     # Display timezone for timestamps shown in the admin UI and CLI.
     # Set to an IANA timezone name. Defaults to America/Chicago (CST/CDT).

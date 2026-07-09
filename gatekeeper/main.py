@@ -56,10 +56,14 @@ async def seed_default_policies():
         enabled.append("gmail")
     if settings.calendar_enabled:
         enabled.append("calendar")
+    if settings.forms_enabled:
+        enabled.append("forms")
+    if settings.appsscript_enabled:
+        enabled.append("appsscript")
 
     # Also load modules even if not explicitly enabled so policies exist
     # This allows toggling via admin UI later
-    all_modules = ["drive", "gmail", "calendar"]
+    all_modules = ["drive", "gmail", "calendar", "forms", "appsscript"]
     from gatekeeper.modules import load_module
 
     for name in all_modules:

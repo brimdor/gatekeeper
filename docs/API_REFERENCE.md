@@ -27,7 +27,7 @@ The MCP `api_key` *parameter* and the REST `Authorization` *header* carry the sa
 /api/v1/{module}/{route-path}
 ```
 
-- `{module}` is one of `drive`, `gmail`, `calendar`.
+- `{module}` is one of `drive`, `gmail`, `calendar`, `forms`, `appsscript`.
 - `{route-path}` is derived from `route_id` by stripping the leading module name and replacing dots with slashes.
 
 Examples:
@@ -43,7 +43,7 @@ Source: `gatekeeper/api/router.py:43-50`.
 
 ## 4. Per-Route Reference
 
-This section summarizes each module. For the full list of 174 routes, their complete `input_schema`, required OAuth scopes, default policies, and binary/multipart flags, see [ROUTES.md](ROUTES.md).
+This section summarizes each module. For the full list of 200 routes, their complete `input_schema`, required OAuth scopes, default policies, and binary/multipart flags, see [ROUTES.md](ROUTES.md).
 
 ### Drive
 
@@ -186,6 +186,33 @@ Source: `gatekeeper/config.py:74`.
 
 ## 8. Binary and Multipart Routes
 
+
+### Forms
+
+**Required OAuth scopes:** `forms.body`, `forms.body.readonly`, `forms.responses.readonly`.  
+**Enabled by default:** 0 of 10 routes.  
+**Base URL:** `https://forms.googleapis.com` (per-route `base_url` set on all 10 routes).
+
+#### Example: list form responses
+
+```bash
+curl -H "Authorization: Bearer ***" \
+  "http://localhost:8080/api/v1/forms/forms/responses/list?form_id=FORM_ID&page_size=20"
+```
+
+### Apps Script
+
+**Required OAuth scopes:** `script.projects`, `script.projects.readonly`, `script.deployments`, `script.deployments.readonly`, `script.processes`, `script.metrics`.  
+**Enabled by default:** 0 of 16 routes.  
+**Base URL:** `https://script.googleapis.com` (per-route `base_url` set on all 16 routes).  
+**Security note:** `appsscript.scripts.run` executes arbitrary user-defined code under the authenticated user's credentials. Enable only with a restrictive policy.
+
+#### Example: get script project
+
+```bash
+curl -H "Authorization: Bearer ***" \
+  "http://localhost:8080/api/v1/appsscript/projects/get?script_id=SCRIPT_ID"
+```
 ### Binary downloads
 
 Routes with `binary_response=True` ask Google for raw bytes (`alt=media`). The proxy decides whether to inline the file as base64 or save it to disk based on the `max_inline_size_mb` policy key (default 1 MB). See `gatekeeper/api/proxy.py:440-504`.

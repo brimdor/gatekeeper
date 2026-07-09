@@ -235,7 +235,135 @@ class TestExistingRoutesUnchanged:
             f"{route_id} should still hit www.googleapis.com, got: {url}"
         )
         # No new route's hostname should leak into a legacy route
-        for host in ("sheets.googleapis.com", "docs.googleapis.com", "slides.googleapis.com"):
+        for host in (
+            "sheets.googleapis.com",
+            "docs.googleapis.com",
+            "slides.googleapis.com",
+            "forms.googleapis.com",
+            "script.googleapis.com",
+        ):
             assert host not in url, (
                 f"{route_id} leaked host {host} (got: {url})"
             )
+
+# --------------------------------------------------------------------------- #
+# Forms hostname tests
+# --------------------------------------------------------------------------- #
+
+
+class TestFormsHostname:
+    @pytest.mark.asyncio
+    async def test_forms_create_hits_forms_host(self, db_session):
+        url, params, _ = await _run_proxy(
+            db_session, "forms", "forms.forms.create", "POST",
+            {"title": "My Form"},
+        )
+        assert url.startswith("https://forms.googleapis.com/"), f"Got: {url}"
+        assert url.endswith("/v1/forms"), f"Got: {url}"
+        assert "www.googleapis.com" not in url
+        # `unpublished` is optional, so it should NOT appear unless explicitly set
+        params = params or {}
+        assert "unpublished" not in params and "unpublished" not in url
+
+    @pytest.mark.asyncio
+    async def test_forms_get_hits_forms_host(self, db_session):
+        url, _, _ = await _run_proxy(
+            db_session, "forms", "forms.forms.get", "GET",
+            {"form_id": "form123"},
+        )
+        assert url.startswith("https://forms.googleapis.com/")
+        assert "/v1/forms/form123" in url
+        assert "www.googleapis.com" not in url
+
+    @pytest.mark.asyncio
+    async def test_forms_responses_list_passes_pagination_as_query(self, db_session):
+        url, params, _ = await _run_proxy(
+            db_session, "forms", "forms.forms.responses.list", "GET",
+            {"form_id": "f1", "page_size": 10, "page_token": "abc"},
+        )
+        assert url.startswith("https://forms.googleapis.com/")
+        assert "/v1/forms/f1/responses" in url
+        # page_size / page_token MUST be in the query string (proxy converts to camelCase)
+        assert params.get("pageSize") == 10
+        assert params.get("pageToken") == "abc"
+
+    @pytest.mark.asyncio
+    async def test_forms_create_unpublished_query_param(self, db_session):
+        # When the caller sets unpublished=True, it must reach the URL as
+        # ?unpublished=true
+        url, params, _ = await _run_proxy(
+            db_session, "forms", "forms.forms.create", "POST",
+            {"title": "X", "unpublished": True},
+        )
+        assert url.startswith("https://forms.googleapis.com/")
+        # The proxy puts it into query_params (not body) because we listed it in
+        # the route's query_params list
+        assert params.get("unpublished") is True
+
+
+# --------------------------------------------------------------------------- #
+# Apps Script hostname tests
+# --------------------------------------------------------------------------- #
+
+
+class TestAppsScriptHostname:
+    @pytest.mark.asyncio
+    async def test_projects_get_hits_script_host(self, db_session):
+        url, _, _ = await _run_proxy(
+            db_session, "appsscript", "appsscript.projects.get", "GET",
+            {"script_id": "proj123"},
+        )
+        assert url.startswith("https://script.googleapis.com/"), f"Got: {url}"
+        assert "/v1/projects/proj123" in url
+        assert "www.googleapis.com" not in url
+
+    @pytest.mark.asyncio
+    async def test_projects_get_metrics_requires_metrics_granularity(self, db_session):
+        # Sanity: passing metrics_granularity=DAILY works; without it the proxy
+        # forwards the request as-is (the API will return 400 if missing).
+        # We verify the query param is properly converted to camelCase.
+        url, params, _ = await _run_proxy(
+            db_session, "appsscript", "appsscript.projects.get_metrics", "GET",
+            {"script_id": "p1", "metrics_granularity": "DAILY"},
+        )
+        assert url.startswith("https://script.googleapis.com/")
+        assert "/v1/projects/p1/metrics" in url
+        # The proxy's snake→camelCase transform turns metrics_granularity into
+        # metricsGranularity — which is what the Google API expects
+        assert params.get("metricsGranularity") == "DAILY"
+
+    @pytest.mark.asyncio
+    async def test_processes_list_uses_flattened_filter_query_params(self, db_session):
+        # Verify the FLATTENED userProcessFilterScriptId (not userProcessFilter.scriptId)
+        # reaches the query string. Google accepts this flat form even though the
+        # canonical form is dotted. See research Observation #2.
+        url, params, _ = await _run_proxy(
+            db_session, "appsscript", "appsscript.processes.list", "GET",
+            {"page_size": 10, "user_process_filter_script_id": "abc123"},
+        )
+        assert url.startswith("https://script.googleapis.com/")
+        assert "/v1/processes" in url
+        # The snake→camelCase transform produces userProcessFilterScriptId
+        assert params.get("userProcessFilterScriptId") == "abc123"
+        assert params.get("pageSize") == 10
+
+    @pytest.mark.asyncio
+    async def test_processes_list_script_processes_uses_colon_notation(self, db_session):
+        # The path is /v1/processes:listScriptProcesses (colon-notation custom method)
+        url, _, _ = await _run_proxy(
+            db_session, "appsscript", "appsscript.processes.list_script_processes", "GET",
+            {},
+        )
+        assert url.startswith("https://script.googleapis.com/")
+        assert url.endswith("/v1/processes:listScriptProcesses"), f"Got: {url}"
+        assert "/v1/processes/listScriptProcesses" not in url  # NOT a sub-resource
+
+    @pytest.mark.asyncio
+    async def test_scripts_run_hits_script_host(self, db_session):
+        url, _, _ = await _run_proxy(
+            db_session, "appsscript", "appsscript.scripts.run", "POST",
+            {"script_id": "s1", "function": "myFunc"},
+        )
+        assert url.startswith("https://script.googleapis.com/")
+        assert "/v1/scripts/s1:run" in url
+
