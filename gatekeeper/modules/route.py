@@ -43,3 +43,15 @@ class RouteDef(BaseModel):
     # Examples: "https://sheets.googleapis.com", "https://docs.googleapis.com",
     # "https://slides.googleapis.com". Defaults to None (use GOOGLE_API_BASE).
     base_url: str | None = None
+    # Optional name of a static method on GoogleProxy that reshapes the flat
+    # normalized_params into the proper Google API request body shape. Use this
+    # when the route's input_schema accepts a user-friendly flat subset that
+    # differs from what the underlying Google API actually expects.
+    #
+    # The named method receives normalized_params and returns the new body dict.
+    # It must be a static method on GoogleProxy with the signature:
+    #   (params: dict[str, Any]) -> dict[str, Any]
+    #
+    # Example: drive.sheets.spreadsheets.create uses "sheet_create" to reshape
+    # flat {title, sheet_titles} into a proper Spreadsheet resource.
+    body_transform: str | None = None

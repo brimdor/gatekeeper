@@ -145,6 +145,50 @@ RouteDef(
 )
 ```
 
+### Route with a body transform
+
+Use `body_transform` when the route's user-friendly input schema differs from the
+underlying Google API request shape. The named method must be a `@staticmethod` on
+`GoogleProxy` with signature `(params: dict) -> dict`.
+
+```python
+# In your module's routes
+RouteDef(
+    route_id="drive.sheets.spreadsheets.create",
+    method="POST",
+    base_url="https://sheets.googleapis.com",
+    google_path="/v4/spreadsheets",
+    description="Create a new spreadsheet",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            "sheet_titles": {"type": "array", "items": {"type": "string"}},
+        },
+    },
+    enabled_by_default=False,
+    body_transform="sheet_create",
+)
+
+# In gatekeeper/api/proxy.py
+@staticmethod
+def sheet_create(params: dict[str, Any]) -> dict[str, Any]:
+    """Reshape flat {title, sheet_titles} into a Google Spreadsheet resource."""
+    spreadsheet: dict[str, Any] = {}
+    if "title" in params:
+        spreadsheet.setdefault("properties", {})["title"] = params.pop("title")
+    if "sheet_titles" in params:
+        spreadsheet["sheets"] = [
+            {"properties": {"title": t, "index": i}}
+            for i, t in enumerate(params.pop("sheet_titles"))
+        ]
+    return spreadsheet
+```
+
+Existing inline transforms (`gmail.filters.*`, `drive.files.create` shortcut) remain
+in `GoogleProxy.call_google` for backwards compatibility. New transforms should use
+the `body_transform` field.
+
 `input_schema` follows JSON Schema conventions. See the [JSON Schema reference](https://json-schema.org/) for advanced patterns.
 
 ## 5. Step 3: Register the Module

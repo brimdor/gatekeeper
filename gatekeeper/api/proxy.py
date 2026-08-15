@@ -255,6 +255,22 @@ class GoogleProxy:
                 shortcut_details["targetMimeType"] = normalized_params.pop("shortcutTargetMimeType")
             normalized_params["shortcutDetails"] = shortcut_details
 
+        # Generic per-route body transform. Routes declare a method name on
+        # GoogleProxy that takes normalized_params and returns the new body.
+        # Used when the user-friendly input schema differs from the Google
+        # API's required request shape (e.g., sheets spreadsheets.create
+        # needs the body to be a Spreadsheet resource, not flat fields).
+        if route.body_transform:
+            transform_method = getattr(self, route.body_transform, None)
+            if transform_method is None:
+                # Programmer error in the route definition — surface it loudly
+                # rather than forwarding a wrong-shape body to Google.
+                raise RuntimeError(
+                    f"Route {route_id} declares body_transform={route.body_transform!r} "
+                    f"but GoogleProxy has no such method"
+                )
+            normalized_params = transform_method(normalized_params)
+
         # Some routes (e.g. drive.files.update) require certain params to be
         # sent as URL query parameters rather than in the JSON body.
         # Google's API silently ignores addParents/removeParents if they're
@@ -654,3 +670,51 @@ class GoogleProxy:
             return params
 
         return body
+
+    @staticmethod
+    def sheet_create(params: dict[str, Any]) -> dict[str, Any]:
+        """Transform flat {title, sheet_titles, locale, timeZone} into a Google
+        Sheets Spreadsheet resource shape.
+
+        The Sheets API v4 POST /v4/spreadsheets endpoint expects the request
+        body to BE the Spreadsheet resource itself — top-level `properties`,
+        `sheets`, `namedRanges`, etc. The route's input_schema accepts a
+        friendly flat subset; this method reshapes it for Google's API.
+
+        Google canonical example:
+            {"properties": {"title": "My Sheet"}, "sheets": [{"properties": {"title": "Sheet1"}}]}
+
+        Caller-friendly shape (this route's public input contract):
+            {"title": "My Sheet", "sheet_titles": ["Sheet1", "Sheet2"]}
+
+        If the caller already passed a properly nested Spreadsheet resource,
+        return it unchanged (passthrough for power users).
+        """
+        # Passthrough: caller already shaped it correctly.
+        if "properties" in params or "sheets" in params:
+            return params
+
+        spreadsheet: dict[str, Any] = {}
+
+        # Top-level Spreadsheet properties
+        if "title" in params:
+            spreadsheet.setdefault("properties", {})["title"] = params.pop("title")
+        if "locale" in params:
+            spreadsheet.setdefault("properties", {})["locale"] = params.pop("locale")
+        if "timeZone" in params:
+            spreadsheet.setdefault("properties", {})["timeZone"] = params.pop("timeZone")
+
+        # sheet_titles → sheets array (each with index)
+        if "sheet_titles" in params:
+            sheet_titles = params.pop("sheet_titles")
+            if isinstance(sheet_titles, list):
+                spreadsheet["sheets"] = [
+                    {"properties": {"title": t, "index": i}}
+                    for i, t in enumerate(sheet_titles)
+                ]
+
+        # Pass through any other fields the caller provided (namedRanges, etc.)
+        for key, value in params.items():
+            spreadsheet[key] = value
+
+        return spreadsheet

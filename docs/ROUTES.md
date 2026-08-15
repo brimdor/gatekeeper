@@ -3351,6 +3351,7 @@ Update multiple ranges of cell values in a single request
 - **URL:** `/api/v1/drive/sheets/spreadsheets/create`
 - **Google path:** `/v4/spreadsheets`
 - **Base URL:** `https://sheets.googleapis.com`
+- **Body transform:** `sheet_create`
 - **Enabled by default:** `No`
 
 Create a new spreadsheet (optional title and sheets)
@@ -3685,7 +3686,7 @@ Apply a batch of updates to a Google Form
       "type": "string"
     },
     "requests": {
-      "description": "Update request objects for the Forms API batchUpdate endpoint",
+      "description": "Update request objects for the Forms API batchUpdate endpoint. Common types: 'createItem' (add question/item), 'updateItem' (modify), 'deleteItem' (remove). For choiceQuestion, options MUST be in canonical Google shape: [{\"value\": \"Worship\"}, {\"value\": \"CCM\"}] \u2014 NOT [{\"item\": {\"value\": \"Worship\"}}]. See https://developers.google.com/forms/api/reference/rest/v1/forms/batchUpdate",
       "items": {
         "type": "object"
       },
@@ -5268,5 +5269,5 @@ Updates the auto-forwarding setting for the specified account.
 
 ---
 
-Generated at: `2026-07-09T15:34:43.401431+00:00Z`
-Source commit: `b1b30ca82e9af93e11b98900757856cc1d88dcd1`
+Generated at: `2026-08-15T14:31:06.019779+00:00Z`
+Source commit: `192ae06def2d9cfbd0de3b53355fac94046b9847`

@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `drive.sheets.spreadsheets.create`: flat `{title, sheet_titles}` input is now correctly reshaped into a Google Spreadsheet resource before forwarding. Previously the proxy forwarded the flat shape verbatim, which Google rejected with `Unknown name "title" at 'spreadsheet': Cannot find field`. Fix introduces a generic `body_transform` field on `RouteDef` (default `None`) and dispatches to a static method on `GoogleProxy` named in the route config. Existing `gmail.filters.*` and `drive.files.create` shortcut transforms remain inline as before.
+
+### Changed
+- `docs/ROUTES.md` generator now includes a "Body transform" line for routes that declare `body_transform`.
+- `forms.forms.batch_update` input_schema description now clarifies the canonical `choiceQuestion.options` shape: `[{"value": "..."}]`, not `[{"item": {"value": "..."}}]`. The proxy itself was correct — the wrapped shape was being rejected by Google.
+
 ## [v0.3.2-rc.1] — 2026-07-09 — Forms and Apps Script modules
 
 ### Added

@@ -83,7 +83,13 @@ class FormsModule(GoogleModule):
                             "type": "array",
                             "items": {"type": "object"},
                             "description": (
-                                "Update request objects for the Forms API batchUpdate endpoint"
+                                "Update request objects for the Forms API batchUpdate endpoint. "
+                                "Common types: 'createItem' (add question/item), 'updateItem' "
+                                "(modify), 'deleteItem' (remove). "
+                                "For choiceQuestion, options MUST be in canonical Google shape: "
+                                '[{"value": "Worship"}, {"value": "CCM"}] — NOT '
+                                '[{"item": {"value": "Worship"}}]. '
+                                "See https://developers.google.com/forms/api/reference/rest/v1/forms/batchUpdate"
                             ),
                         },
                     },

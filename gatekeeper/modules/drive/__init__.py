@@ -1383,6 +1383,7 @@ class DriveModule(GoogleModule):
                 },
                 default_policy={},
                 enabled_by_default=False,
+                body_transform="sheet_create",
             ),
             RouteDef(
                 route_id="drive.sheets.spreadsheets.batch_update",

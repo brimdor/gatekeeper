@@ -190,6 +190,24 @@ Current timeout configuration:
 
 On a timeout the agent receives a 504 or a transport-level error. Treat it as transient and retry once. If a mutation request (POST/PUT/PATCH/DELETE) timed out, verify whether the mutation actually succeeded before retrying — check with a corresponding GET first.
 
+## 9. Payload Shape Mismatches
+
+Google Sheets and Forms API routes expect specific request body shapes. If the route's user-friendly input schema differs from what the underlying API accepts, the proxy applies a `body_transform` to reshape the request. As of v0.3.2, the following routes use a body transform:
+
+| Route | Transform | Input contract | API contract |
+|---|---|---|---|
+| `drive.sheets.spreadsheets.create` | `sheet_create` | Flat `{title, sheet_titles}` | `Spreadsheet` resource (`{properties, sheets, ...}`) |
+
+### Fixed: sheets.spreadsheets.create
+
+Prior to the fix, the proxy forwarded `{"title": "..."}` verbatim to `POST https://sheets.googleapis.com/v4/spreadsheets`. Google rejected with `Unknown name "title" at 'spreadsheet': Cannot find field`. After the fix, callers send the flat shape and the proxy reshapes it into a proper `Spreadsheet` resource before forwarding.
+
+Do NOT send a wrapped shape (`{"spreadsheet": {...}}`) or the raw Google shape (`{"properties": {"title": "..."}}`) — the flat input contract is the public API. Callers who pass a proper `Spreadsheet` resource (with `properties` or `sheets` key) are passed through unchanged.
+
+### forms.forms.batch_update choiceQuestion.options
+
+The proxy correctly forwards whatever `requests` array you send. The shape of `choiceQuestion.options` is **client-side**: use canonical Google `Option` objects `[{"value": "Worship"}, {"value": "CCM"}]`. Wrapped shapes like `[{"item": {"value": "Worship"}}]` are rejected by Google with `Unknown name "item" at '...choice_question.options'`. See `gatekeeper/modules/forms/__init__.py` route description for full examples.
+
 ## 8. Debugging Checklist
 
 Before escalating to an admin, walk this list:
