@@ -85,6 +85,44 @@ class TestRestructureSheetCreateBody:
             "sheets": [{"properties": {"title": "Only", "index": 0}}],
         }
 
+    def test_handles_camelcase_sheet_titles(self):
+        """After snake→camel normalization, sheet_titles becomes sheetTitles.
+        The transform must still recognize and convert it correctly.
+        """
+        result = GoogleProxy.sheet_create({
+            "title": "My Sheet",
+            "sheetTitles": ["Sheet1", "Sheet2"],
+        })
+        assert result == {
+            "properties": {"title": "My Sheet"},
+            "sheets": [
+                {"properties": {"title": "Sheet1", "index": 0}},
+                {"properties": {"title": "Sheet2", "index": 1}},
+            ],
+        }
+
+    def test_handles_snake_case_sheet_titles(self):
+        """For backwards compat: snake_case key still works."""
+        result = GoogleProxy.sheet_create({
+            "title": "My Sheet",
+            "sheet_titles": ["Only"],
+        })
+        assert result == {
+            "properties": {"title": "My Sheet"},
+            "sheets": [{"properties": {"title": "Only", "index": 0}}],
+        }
+
+    def test_camelcase_preferred_over_snake_case(self):
+        """When both are present, use camelCase (post-normalization form)."""
+        result = GoogleProxy.sheet_create({
+            "title": "X",
+            "sheetTitles": ["FromCamel"],
+            "sheet_titles": ["FromSnake"],
+        })
+        # sheetTitles wins; sheet_titles never gets seen
+        sheet_titles_field = result["sheets"][0]["properties"]["title"]
+        assert sheet_titles_field == "FromCamel"
+
 
 # ─── RouteDef + integration tests ───────────────────────────────────────────
 

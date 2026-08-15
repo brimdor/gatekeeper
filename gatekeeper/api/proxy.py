@@ -681,6 +681,10 @@ class GoogleProxy:
         `sheets`, `namedRanges`, etc. The route's input_schema accepts a
         friendly flat subset; this method reshapes it for Google's API.
 
+        This is called AFTER snake_case → camelCase normalization, so the
+        keys arrive here as `title`, `sheetTitles`, `locale`, `timeZone`
+        (not the snake_case forms).
+
         Google canonical example:
             {"properties": {"title": "My Sheet"}, "sheets": [{"properties": {"title": "Sheet1"}}]}
 
@@ -696,7 +700,9 @@ class GoogleProxy:
 
         spreadsheet: dict[str, Any] = {}
 
-        # Top-level Spreadsheet properties
+        # Top-level Spreadsheet properties.
+        # Note: callers may use snake_case sheet_titles (pre-normalization) OR
+        # camelCase sheetTitles (post-normalization) — handle both for safety.
         if "title" in params:
             spreadsheet.setdefault("properties", {})["title"] = params.pop("title")
         if "locale" in params:
@@ -704,9 +710,11 @@ class GoogleProxy:
         if "timeZone" in params:
             spreadsheet.setdefault("properties", {})["timeZone"] = params.pop("timeZone")
 
-        # sheet_titles → sheets array (each with index)
-        if "sheet_titles" in params:
-            sheet_titles = params.pop("sheet_titles")
+        # sheetTitles (camelCase, post-normalization) or sheet_titles (snake_case)
+        # → sheets array (each with index)
+        sheet_titles_key = "sheetTitles" if "sheetTitles" in params else "sheet_titles"
+        if sheet_titles_key in params:
+            sheet_titles = params.pop(sheet_titles_key)
             if isinstance(sheet_titles, list):
                 spreadsheet["sheets"] = [
                     {"properties": {"title": t, "index": i}}
