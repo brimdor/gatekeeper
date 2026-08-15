@@ -72,6 +72,8 @@ def _route_block(route, module_name: str) -> str:
         lines.append("- **Binary response:** `True`")
     if route.multipart_upload:
         lines.append("- **Multipart upload:** `True`")
+    if route.body_transform:
+        lines.append(f"- **Body transform:** `{route.body_transform}`")
     lines.append(f"- **Enabled by default:** `{'Yes' if route.enabled_by_default else 'No'}`")
     if route.default_policy:
         lines.append(f"- **Default policy:** `{json.dumps(route.default_policy, sort_keys=True)}`")
